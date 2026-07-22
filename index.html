@@ -256,6 +256,28 @@ textarea{resize:vertical;min-height:70px}
 .methodcard .msuit b{color:var(--ink-2)}
 .methodcard input[type=text]{margin-top:7px}
 
+/* ---------- setup redesign (2026-07-16): unified import, accordion, compact catalog ---------- */
+.impsummary{display:flex;align-items:center;gap:8px;background:var(--tint-aqua);color:var(--aqua-dd);border-radius:10px;padding:9px 14px;font-size:12px;margin-top:10px}
+.accrow{border:1.5px solid var(--line);border-radius:11px;margin-bottom:8px;background:#fff}
+.acchead{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;user-select:none}
+.acchead:hover{background:#fafafa}
+.acchead b{font-family:var(--font-head);font-size:12.6px}
+.accbody{padding:2px 14px 10px;border-top:1px dashed var(--line)}
+.acccount{font-size:11px;font-weight:700;border-radius:20px;padding:3px 10px;background:var(--tint-aqua);color:var(--aqua-dd)}
+.acccount.part{background:var(--tint-amber);color:#8a5a00}
+.accchev{display:inline-block;transition:.12s;margin-right:7px;color:var(--muted)}
+.accchev.open{transform:rotate(90deg)}
+.objfields.two{grid-template-columns:repeat(2,1fr)}
+.allscores{font-size:10.6px;color:var(--muted);cursor:pointer;text-decoration:underline;background:none;border:none;padding:4px 0}
+.mrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px dashed var(--line)}
+.mrow:last-child{border-bottom:none}
+.mrow .mname{font-family:var(--font-head);font-size:12.4px;font-weight:700}
+.mrow .mline{font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.mrow .mleft{min-width:0;flex:1}
+.mrow .mright{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.mtag{font-size:10px;background:var(--tint-aqua);color:var(--aqua-dd);border-radius:20px;padding:2px 9px;white-space:nowrap}
+.medit{border:1.5px solid var(--aqua);border-radius:11px;padding:11px 13px;margin:8px 0;background:#f0fbfd}
+
 /* Two pages per person, real portrait/landscape alternation (brief §5,
    rev.3) via CSS Paged Media named pages — supported in Chromium's print/
    PDF engine (which this project already assumes for "print-to-PDF from
@@ -450,7 +472,7 @@ var STR = {
  setupContinue:{ro:'Continuă la grup →',en:'Continue to group →'},
  setupNav:{ro:'Configurare',en:'Setup'},
  evalSheetTitle:{ro:'Fișa de evaluare — texte de obiectiv',en:'Evaluation sheet — objective texts'},
- evalSheetSub:{ro:'Pentru fiecare comportament, textul de obiectiv folosit când scorul e 0 sau 1 (textul de la "scor -1" e afișat împreună cu cel de la "scor 1"; coloana "scor 2" există în fișier pentru refolosire viitoare ca bibliotecă de arii — acest generator nu o afișează).',en:'For each behavior, the objective text used when the score is 0 or 1 (the "score -1" text is shown together with the "score 1" text; the "score 2" column exists in the file for future reuse as an area library — this generator does not display it).'},
+ evalSheetSub:{ro:'Grupate pe competență — deschide una și completează textele pentru scor 0 și scor 1. Celelalte două câmpuri (text asociat și scor 2) apar la „Toate scorurile".',en:'Grouped by competency — open one and fill in the texts for score 0 and score 1. The other two fields (paired text and score 2) are under "All scores".'},
  evalDownload:{ro:'Descarcă șablon (.csv)',en:'Download template (.csv)'},
  evalUpload:{ro:'Importă fișă completată (.csv)',en:'Import filled sheet (.csv)'},
  evalTemplateDownloaded:{ro:'Șablon descărcat',en:'Template downloaded'},
@@ -478,6 +500,18 @@ var STR = {
  filterPh:{ro:'Caută persoană…',en:'Find a person…'},
  stepOf:{ro:'pas',en:'step'},
  setupImportHint:{ro:'Nu ai încă date? Poți importa rezultatele (.xls) direct de aici — banca de competențe se completează singură.',en:'No data yet? You can import the results (.xls) right here — the competency bank fills itself in.'},
+ setupDropTitle:{ro:'Trage fișierele aici sau apasă pentru a alege',en:'Drag files here or click to choose'},
+ setupDropSub:{ro:'Rezultate participanți (.xls) sau fișă de evaluare completată (.csv) — recunoscute automat.',en:'Participant results (.xls) or a filled evaluation sheet (.csv) — detected automatically.'},
+ sheetImported:{ro:'Fișă de evaluare importată:',en:'Evaluation sheet imported:'},
+ sumComps:{ro:'competențe',en:'competencies'},
+ sumBehs:{ro:'comportamente',en:'behaviors'},
+ sumTexts:{ro:'texte de obiectiv',en:'objective texts'},
+ txtFilled:{ro:'completate',en:'filled'},
+ allScores:{ro:'Toate scorurile (0 / -1 / 1 / 2)',en:'All scores (0 / -1 / 1 / 2)'},
+ primaryScores:{ro:'Doar scorurile folosite (0 și 1)',en:'Only the scores in use (0 and 1)'},
+ methodsRare:{ro:'metode — rar modificat',en:'methods — rarely edited'},
+ editLbl:{ro:'Editează',en:'Edit'},
+ doneLbl:{ro:'Gata',en:'Done'},
  calPreviewSub:{ro:'Previzualizare live — exact cum va arăta pe pagina de print.',en:'Live preview — exactly how it will look on the print page.'}
 };
 function t(k){ return (STR[k] && STR[k][LANG]) || k; }
@@ -775,9 +809,17 @@ function blankPerson(source){
  };
 }
 function rebuildProjectBank(){
+ // Union of every person's bank AND the evaluation-sheet bank (setup
+ // redesign 2026-07-16, DoD 2: a CSV imported on a fresh session used to
+ // store objective texts invisibly — its competency/subcompetency/behavior
+ // columns were ignored, so the setup page stayed empty. The sheet-derived
+ // bank now lives in STATE.assessment.sheetBank, saved with the session,
+ // and is merged here so neither import order wipes the other).
  var byComp = {};
- STATE.people.forEach(function(p){
-  (p.bank||[]).forEach(function(c){
+ var sources = STATE.people.map(function(p){ return p.bank||[]; });
+ if(STATE.assessment && STATE.assessment.sheetBank) sources.push(STATE.assessment.sheetBank);
+ sources.forEach(function(bank){
+  (bank||[]).forEach(function(c){
    if(!c.name) return;
    var ce = byComp[c.name] || (byComp[c.name]={name:c.name,subs:{}});
    (c.subs||[]).forEach(function(s){
@@ -844,32 +886,83 @@ function downloadEvalSheetTemplate(){
  downloadFile('evaluation-sheet-template.csv', lines.join('\n'), 'text/csv');
  toast('<b>'+t('evalTemplateDownloaded')+'</b>','ok');
 }
+var SETUP_SUMMARY = null; // transient: last sheet-import result shown inline on Setup
+function importEvalSheetText(text){
+ // Setup redesign 2026-07-16 (DoD 2): besides storing the objective texts,
+ // BUILD the competency bank from the sheet's own competency/subcompetency/
+ // behavior columns — previously ignored, so importing a CSV on a fresh
+ // session produced only a toast and a page that looked unchanged.
+ var rows = csvParse(String(text).replace(/^﻿/,'')).filter(function(row){ return row.some(function(v){return String(v).trim();}); });
+ if(rows.length<2){ toast(t('evalImportFailed'),'err'); return false; }
+ var hdr = rows[0].map(function(h){ return String(h).replace(/^﻿/,'').trim().toLowerCase(); });
+ var iBeh=hdr.indexOf('behavior'), iComp=hdr.indexOf('competency'), iSub=hdr.indexOf('subcompetency'),
+  i0=hdr.indexOf('objective_text_score_0'), im1=hdr.indexOf('objective_text_score_-1'),
+  i1=hdr.indexOf('objective_text_score_1'), i2=hdr.indexOf('objective_text_score_2');
+ if(iBeh<0){ toast(t('evalImportFailed'),'err'); return false; }
+ // Merge semantics: importing a second sheet ADDS to the sheet bank (union
+ // by competency/sub/behavior, same as objectives merge by behavior key) —
+ // it never wipes what an earlier sheet contributed.
+ var n=0, nTexts=0, byComp={}, order=[];
+ (STATE.assessment.sheetBank||[]).forEach(function(c){
+  var ce=byComp[c.name]={name:c.name,subs:{},subOrder:[]}; order.push(c.name);
+  (c.subs||[]).forEach(function(s){ ce.subs[s.name]={name:s.name,behaviors:(s.behaviors||[]).slice()}; ce.subOrder.push(s.name); });
+ });
+ var inFile={};
+ for(var k=1;k<rows.length;k++){
+  var row=rows[k]; var bt=String(row[iBeh]||'').trim(); if(!bt) continue;
+  var o = {
+   '0': i0>=0?String(row[i0]||'').trim():'',
+   '-1': im1>=0?String(row[im1]||'').trim():'',
+   '1': i1>=0?String(row[i1]||'').trim():'',
+   '2': i2>=0?String(row[i2]||'').trim():''
+  };
+  STATE.assessment.objectives[bt] = o;
+  nTexts += (o['0']?1:0)+(o['-1']?1:0)+(o['1']?1:0)+(o['2']?1:0);
+  n++;
+  var cn = iComp>=0?String(row[iComp]||'').trim():'';
+  if(cn){
+   inFile[cn]=1;
+   var sn = iSub>=0?String(row[iSub]||'').trim():'';
+   if(!sn) sn = cn; // empty subcompetency = repeat of the competency (collapsed in UI)
+   var ce = byComp[cn]; if(!ce){ ce=byComp[cn]={name:cn,subs:{},subOrder:[]}; order.push(cn); }
+   var se = ce.subs[sn]; if(!se){ se=ce.subs[sn]={name:sn,behaviors:[]}; ce.subOrder.push(sn); }
+   if(se.behaviors.indexOf(bt)<0) se.behaviors.push(bt);
+  }
+ }
+ if(order.length){
+  STATE.assessment.sheetBank = order.map(function(cn){
+   var c=byComp[cn];
+   return {name:c.name, subs:c.subOrder.map(function(sn){ return {name:sn, behaviors:c.subs[sn].behaviors}; })};
+  });
+  rebuildProjectBank();
+ }
+ SETUP_SUMMARY = { comps:Object.keys(inFile).length, behs:n, texts:nTexts }; // counts from THIS file, not the merged total
+ render();
+ toast('<b>'+n+'</b> '+t('evalImportedOk'),'ok');
+ return true;
+}
 function importEvalSheetFile(input){
  if(typeof FileReader==='undefined'){ toast('Importul de fișiere nu e disponibil în acest mediu.','warn'); return; }
  var f=input.files&&input.files[0]; if(!f) return;
  var r=new FileReader();
- r.onload=function(){
-  var rows = csvParse(String(r.result)).filter(function(row){ return row.some(function(v){return String(v).trim();}); });
-  if(rows.length<2){ toast(t('evalImportFailed'),'err'); return; }
-  var hdr = rows[0].map(function(h){ return String(h).trim().toLowerCase(); });
-  var iBeh=hdr.indexOf('behavior'), i0=hdr.indexOf('objective_text_score_0'), im1=hdr.indexOf('objective_text_score_-1'),
-   i1=hdr.indexOf('objective_text_score_1'), i2=hdr.indexOf('objective_text_score_2');
-  if(iBeh<0){ toast(t('evalImportFailed'),'err'); return; }
-  var n=0;
-  for(var k=1;k<rows.length;k++){
-   var row=rows[k]; var bt=String(row[iBeh]||'').trim(); if(!bt) continue;
-   STATE.assessment.objectives[bt] = {
-    '0': i0>=0?String(row[i0]||'').trim():'',
-    '-1': im1>=0?String(row[im1]||'').trim():'',
-    '1': i1>=0?String(row[i1]||'').trim():'',
-    '2': i2>=0?String(row[i2]||'').trim():''
-   };
-   n++;
-  }
-  render();
-  toast('<b>'+n+'</b> '+t('evalImportedOk'),'ok');
- };
+ r.onload=function(){ importEvalSheetText(String(r.result)); };
  r.readAsText(f); input.value='';
+}
+/* One entry point for every import surface (dropzone, file input, page-wide
+   drop): route by file type — .csv → evaluation sheet, everything else →
+   participant .xls parser (DoD 1). */
+function routeImportFiles(fileList){
+ if(typeof FileReader==='undefined'){ toast('Importul de fișiere nu e disponibil în acest mediu.','warn'); return; }
+ var files = Array.prototype.slice.call(fileList||[]);
+ if(!files.length) return;
+ var xls=[], csv=[];
+ files.forEach(function(f){ (/\.csv$/i.test(f.name) ? csv : xls).push(f); });
+ csv.forEach(function(f){
+  var r=new FileReader();
+  r.onload=function(){ importEvalSheetText(String(r.result)); };
+  r.readAsText(f);
+ });
+ if(xls.length) handleImportFiles(xls);
 }
 
 /* =======================================================================
@@ -1001,68 +1094,110 @@ function render(){
 /* ---------- setup (assessment definition — first step, brief §Assessment
    setup page, 2026-07-13 rev.3): competencies/behaviors/objective texts +
    the editable methods catalog, group-wide, saved in the session. ---------- */
+/* Setup redesign 2026-07-16 (UX increment): one always-visible import zone
+   (both file types, drag & drop), objectives collapsed per competency with
+   fill counts, methods catalog as compact read-only rows with per-method
+   edit-on-demand. Transient UI state below is deliberately NOT part of the
+   session file. */
+var SETUP_OPEN = {}, SETUP_ALL = {}, METHOD_EDIT = null;
+function toggleSetupComp(name){ SETUP_OPEN[name] = !isCompOpen(name); render(); }
+function isCompOpen(name){
+ if(name in SETUP_OPEN) return SETUP_OPEN[name];
+ return (STATE.projectBank||[]).length===1; // a single competency starts open
+}
+function toggleAllScores(name){ SETUP_ALL[name]=!SETUP_ALL[name]; render(); }
+function objFilled(bt){ var o=STATE.assessment.objectives[bt]; return !!(o && o['0'] && o['1']); }
+function editMethod(i){ METHOD_EDIT=i; render(); }
 function viewSetup(){
  var bank = STATE.projectBank||[];
- // first-run fix (DoD 3, 2026-07-14 polish): a fresh session used to land
- // on an empty Setup that said "import a person first" while imports lived
- // on the NEXT screen — circular. Now .xls results can be dropped/chosen
- // right here; the competency bank seeds itself and this page fills in.
- var importBlock = bank.length ? '' :
-  '<div class="card"><div class="dropzone" id="dz" onclick="document.getElementById(\'fileImportSetup\').click()">'+
-   '<b>'+t('dropTitle')+'</b>'+t('setupImportHint')+
-   '<input type="file" id="fileImportSetup" accept=".xls" multiple style="display:none" onchange="handleImportFiles(this.files);this.value=\'\'">'+
-  '</div></div>';
- var evalSection =
-  '<div class="card"><h3>'+t('evalSheetTitle')+'</h3><div class="sub" style="margin:2px 0 10px">'+t('evalSheetSub')+'</div>'+
-   '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'+
-    '<button class="btn btn-ghost btn-sm" onclick="downloadEvalSheetTemplate()">'+ic('download')+' '+t('evalDownload')+'</button>'+
-    '<span class="filebtn btn btn-ghost btn-sm">'+ic('upload')+' '+t('evalUpload')+'<input type="file" accept=".csv,text/csv" onchange="importEvalSheetFile(this)"></span>'+
+ var importCard =
+  '<div class="card">'+
+   '<div class="dropzone" id="dz" onclick="document.getElementById(\'fileImportSetup\').click()">'+
+    '<b>'+t('setupDropTitle')+'</b>'+t('setupDropSub')+
+    '<input type="file" id="fileImportSetup" accept=".xls,.csv,text/csv" multiple style="display:none" onchange="routeImportFiles(this.files);this.value=\'\'">'+
    '</div>'+
-   (bank.length ? bank.map(function(c){
-    return '<div class="behgroup"><div class="behgroup-head"><b>'+esc(c.name)+'</b></div>'+
-     c.subs.map(function(s){
-      var subHead = subLabel(c.name,s.name);
-      return (subHead?'<div class="note" style="margin:4px 0">'+esc(subHead)+'</div>':'')+
-       s.behaviors.map(function(bt){
-        var o = STATE.assessment.objectives[bt] || {'-1':'','0':'','1':'','2':''};
-        return '<div class="objrow">'+
-         '<div class="objtext">'+esc(bt)+'</div>'+
-         '<div class="objfields">'+
-          '<label>'+t('evalScore0')+'<input type="text" value="'+esc(o['0'])+'" onchange="setObjectiveText(\''+jsq(bt)+'\',\'0\',this.value)"></label>'+
-          '<label>'+t('evalScore1')+'<input type="text" value="'+esc(o['1'])+'" onchange="setObjectiveText(\''+jsq(bt)+'\',\'1\',this.value)"></label>'+
+   '<div style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="downloadEvalSheetTemplate()">'+ic('download')+' '+t('evalDownload')+'</button></div>'+
+   (SETUP_SUMMARY ? '<div class="impsummary">'+ic('check')+'<span><b>'+t('sheetImported')+'</b> '+SETUP_SUMMARY.comps+' '+t('sumComps')+' · '+SETUP_SUMMARY.behs+' '+t('sumBehs')+' · '+SETUP_SUMMARY.texts+' '+t('sumTexts')+'</span></div>' : '')+
+  '</div>';
+ var totFilled=0, totBeh=0;
+ var accHtml = bank.map(function(c){
+  var allBeh=[]; c.subs.forEach(function(s){ s.behaviors.forEach(function(bt){ allBeh.push(bt); }); });
+  var filled=allBeh.filter(objFilled).length;
+  totFilled+=filled; totBeh+=allBeh.length;
+  var open = isCompOpen(c.name);
+  var body='';
+  if(open){
+   var showAll = !!SETUP_ALL[c.name];
+   body = '<div class="accbody">'+
+    c.subs.map(function(s){
+     var subHead = subLabel(c.name,s.name);
+     return (subHead?'<div class="note" style="margin:6px 0 2px">'+esc(subHead)+'</div>':'')+
+      s.behaviors.map(function(bt){
+       var o = STATE.assessment.objectives[bt] || {'-1':'','0':'','1':'','2':''};
+       return '<div class="objrow">'+
+        '<div class="objtext">'+esc(bt)+'</div>'+
+        '<div class="objfields'+(showAll?'':' two')+'">'+
+         '<label>'+t('evalScore0')+'<input type="text" value="'+esc(o['0'])+'" onchange="setObjectiveText(\''+jsq(bt)+'\',\'0\',this.value)"></label>'+
+         '<label>'+t('evalScore1')+'<input type="text" value="'+esc(o['1'])+'" onchange="setObjectiveText(\''+jsq(bt)+'\',\'1\',this.value)"></label>'+
+         (showAll ?
           '<label class="muted">'+t('evalScoreM1')+'<input type="text" value="'+esc(o['-1'])+'" onchange="setObjectiveText(\''+jsq(bt)+'\',\'-1\',this.value)"></label>'+
-          '<label class="muted">'+t('evalScore2')+'<input type="text" value="'+esc(o['2'])+'" onchange="setObjectiveText(\''+jsq(bt)+'\',\'2\',this.value)"></label>'+
-         '</div></div>';
-       }).join('');
-     }).join('')+
-    '</div>';
-   }).join('') : '<div class="empty">'+t('evalNoBehaviors')+'</div>')+
+          '<label class="muted">'+t('evalScore2')+'<input type="text" value="'+esc(o['2'])+'" onchange="setObjectiveText(\''+jsq(bt)+'\',\'2\',this.value)"></label>'
+         : '')+
+        '</div></div>';
+      }).join('');
+    }).join('')+
+    '<button class="allscores" onclick="toggleAllScores(\''+jsq(c.name)+'\')">'+(showAll?t('primaryScores'):t('allScores'))+' →</button>'+
+   '</div>';
+  }
+  return '<div class="accrow"><div class="acchead" onclick="toggleSetupComp(\''+jsq(c.name)+'\')">'+
+   '<span><span class="accchev'+(open?' open':'')+'">▸</span><b>'+esc(c.name)+'</b></span>'+
+   '<span class="acccount'+(filled<allBeh.length?' part':'')+'">'+filled+'/'+allBeh.length+' '+t('txtFilled')+'</span></div>'+body+'</div>';
+ }).join('');
+ var evalSection =
+  '<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap"><h3 style="margin:0">'+t('evalSheetTitle')+'</h3>'+
+   (bank.length?'<span class="acccount'+(totFilled<totBeh?' part':'')+'">'+totFilled+'/'+totBeh+' '+t('txtFilled')+'</span>':'')+'</div>'+
+   '<div class="sub" style="margin:4px 0 12px">'+t('evalSheetSub')+'</div>'+
+   (bank.length ? accHtml : '<div class="empty">'+t('evalNoBehaviors')+'</div>')+
   '</div>';
  var methods = getMethods();
+ var nMethods = methods.filter(function(m){return !m.free;}).length;
  var methodsSection =
-  '<div class="card"><h3>'+t('methodsCatalogTitle')+'</h3><div class="sub" style="margin:2px 0 10px">'+t('methodsCatalogSub')+'</div>'+
-   '<div class="grid">'+methods.map(function(m,i){
+  '<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">'+
+   '<h3 style="margin:0">'+t('methodsCatalogTitle')+' <span class="note" style="font-weight:400">'+nMethods+' '+t('methodsRare')+'</span></h3>'+
+   '<button class="btn btn-ghost btn-sm" onclick="addMethod()">'+t('addMethod')+'</button></div>'+
+   '<div class="sub" style="margin:4px 0 8px">'+t('methodsCatalogSub')+'</div>'+
+   methods.map(function(m,i){
     if(m.free) return '';
-    return '<div class="methodcard" style="cursor:default">'+
-     '<label class="lb" style="margin-top:0">RO</label><input type="text" value="'+esc(m.ro)+'" onchange="getMethods()['+i+'].ro=this.value">'+
-     '<label class="lb">EN</label><input type="text" value="'+esc(m.en)+'" onchange="getMethods()['+i+'].en=this.value">'+
-     '<label class="lb">'+(LANG==='ro'?'Descriere RO':'Description RO')+'</label><textarea onchange="getMethods()['+i+'].desc.ro=this.value">'+esc(m.desc.ro)+'</textarea>'+
-     '<label class="lb">'+(LANG==='ro'?'Descriere EN':'Description EN')+'</label><textarea onchange="getMethods()['+i+'].desc.en=this.value">'+esc(m.desc.en)+'</textarea>'+
-     '<label class="lb">'+(LANG==='ro'?'Potrivită pentru RO':'Suitable for RO')+'</label><textarea onchange="getMethods()['+i+'].suit.ro=this.value">'+esc(m.suit.ro)+'</textarea>'+
-     '<label class="lb">'+(LANG==='ro'?'Potrivită pentru EN':'Suitable for EN')+'</label><textarea onchange="getMethods()['+i+'].suit.en=this.value">'+esc(m.suit.en)+'</textarea>'+
-     '<label class="lb">'+t('methodTagsHint')+'</label><input type="text" value="'+esc((m.tags||[]).join(', '))+'" onchange="getMethods()['+i+'].tags=this.value.split(\',\').map(function(s){return s.trim();}).filter(Boolean)">'+
-     '<div style="margin-top:8px"><button class="btn '+(ARMED['mdel'+i]?'btn-red':'btn-ghost')+' btn-sm" onclick="armDo(\'mdel'+i+'\',function(){getMethods().splice('+i+',1);render()})">'+(ARMED['mdel'+i]?t('armSure'):ic('trash'))+'</button></div>'+
-    '</div>';
-   }).join('')+'</div>'+
-   '<div style="margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="addMethod()">'+t('addMethod')+'</button></div>'+
+    if(METHOD_EDIT===i) return methodEditForm(m,i);
+    var tags = m.tags||[];
+    return '<div class="mrow"><div class="mleft"><div class="mname">'+esc(m[LANG])+'</div>'+
+     (m.desc[LANG]?'<div class="mline">'+esc(m.desc[LANG])+'</div>':'')+'</div>'+
+     '<div class="mright">'+(tags.length?'<span class="mtag">'+esc(tags[0])+(tags.length>1?' +'+(tags.length-1):'')+'</span>':'')+
+      '<button class="btn btn-ghost btn-sm" onclick="editMethod('+i+')">'+t('editLbl')+'</button></div></div>';
+   }).join('')+
   '</div>';
  return '<div class="pagehead"><div><h1>'+t('setupTitle')+'</h1><div class="sub">'+t('setupSub')+'</div></div>'+
   '<div class="ph-actions"><button class="btn btn-green btn-big" onclick="STATE.view=\'roster\';render()">'+t('setupContinue')+'</button></div></div>'+
-  importBlock+evalSection+methodsSection;
+  importCard+evalSection+methodsSection;
+}
+function methodEditForm(m,i){
+ return '<div class="medit">'+
+  '<label class="lb" style="margin-top:0">RO</label><input type="text" value="'+esc(m.ro)+'" onchange="getMethods()['+i+'].ro=this.value">'+
+  '<label class="lb">EN</label><input type="text" value="'+esc(m.en)+'" onchange="getMethods()['+i+'].en=this.value">'+
+  '<label class="lb">'+(LANG==='ro'?'Descriere RO':'Description RO')+'</label><textarea onchange="getMethods()['+i+'].desc.ro=this.value">'+esc(m.desc.ro)+'</textarea>'+
+  '<label class="lb">'+(LANG==='ro'?'Descriere EN':'Description EN')+'</label><textarea onchange="getMethods()['+i+'].desc.en=this.value">'+esc(m.desc.en)+'</textarea>'+
+  '<label class="lb">'+(LANG==='ro'?'Potrivită pentru RO':'Suitable for RO')+'</label><textarea onchange="getMethods()['+i+'].suit.ro=this.value">'+esc(m.suit.ro)+'</textarea>'+
+  '<label class="lb">'+(LANG==='ro'?'Potrivită pentru EN':'Suitable for EN')+'</label><textarea onchange="getMethods()['+i+'].suit.en=this.value">'+esc(m.suit.en)+'</textarea>'+
+  '<label class="lb">'+t('methodTagsHint')+'</label><input type="text" value="'+esc((m.tags||[]).join(', '))+'" onchange="getMethods()['+i+'].tags=this.value.split(\',\').map(function(s){return s.trim();}).filter(Boolean)">'+
+  '<div style="margin-top:10px;display:flex;gap:8px">'+
+   '<button class="btn btn-aqua btn-sm" onclick="editMethod(null)">'+ic('check')+' '+t('doneLbl')+'</button>'+
+   '<button class="btn '+(ARMED['mdel'+i]?'btn-red':'btn-ghost')+' btn-sm" onclick="armDo(\'mdel'+i+'\',function(){getMethods().splice('+i+',1);METHOD_EDIT=null;render()})">'+(ARMED['mdel'+i]?t('armSure'):ic('trash'))+'</button>'+
+  '</div></div>';
 }
 function addMethod(){
  var methods=getMethods();
  methods.push({key:nid('m'), ro:'Metodă nouă', en:'New method', desc:{ro:'',en:''}, suit:{ro:'',en:''}, tags:[]});
+ METHOD_EDIT = methods.length-1;
  render();
 }
 
@@ -1626,6 +1761,7 @@ function resetSession(){
  STATE = { people: [], activeId: null, view: 'setup', projectBank:null, bankReviewed:false, pendingImportNames:[],
   assessment: { objectives:{}, methods:null } };
  LAST_SAVED=''; _lastBackup=''; RESTORE_OFFER=null;
+ SETUP_SUMMARY=null; SETUP_OPEN={}; SETUP_ALL={}; METHOD_EDIT=null; // transient setup-page UI state
  try{ localStorage.removeItem(BACKUP_KEY); }catch(e){}
  render();
 }
@@ -1651,7 +1787,7 @@ document.addEventListener('drop',function(e){
  e.preventDefault();
  var dz=document.getElementById('dz'); if(dz) dz.classList.remove('drag');
  if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length && (STATE.view==='roster'||STATE.view==='setup')){
-  handleImportFiles(e.dataTransfer.files);
+  routeImportFiles(e.dataTransfer.files); // .csv → evaluation sheet, .xls → participants (setup redesign, DoD 1)
  }
 });
 /* crash recovery + close-tab guard (DoD 1) */
