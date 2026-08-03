@@ -202,7 +202,17 @@ textarea{resize:vertical;min-height:70px}
 .calheader .caltrack{height:16px}
 .calgrid{position:absolute;top:0;bottom:0;width:1px;background:rgba(35,31,32,.1)}
 .calmonth{position:absolute;top:0;font-size:8.6px;color:var(--muted);font-weight:700;transform:translateX(2px)}
-.calbar{position:absolute;top:2px;height:14px;border-radius:4px;background:var(--aqua);color:#fff;font-size:8.4px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap}
+/* 2026-08-03 hotfix (label clipping): the bar used to BE the label box, so a
+   short duration pill silently swallowed the method name and the dates. The
+   pill is now just the duration; the text lives in .calbartxt, which stays
+   inside while it fits and is moved outside the pill (right, or left when the
+   bar sits near the end of the track) by fitCalendarLabels() when it doesn't.
+   Outside, the method name is dropped — .calrowlabel already carries it — so
+   only the date range (+ owner) spills out, in ink instead of white. */
+.calbar{position:absolute;top:2px;height:14px;border-radius:4px;background:var(--aqua);color:#fff;font-size:8.4px;font-weight:700;overflow:visible;white-space:nowrap}
+.calbartxt{position:absolute;left:0;top:0;height:100%;width:100%;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;box-sizing:border-box}
+.calbar.lbl-right .calbartxt{left:100%;width:auto;color:var(--ink-2);padding:0 0 0 5px;overflow:visible}
+.calbar.lbl-left .calbartxt{left:auto;right:100%;width:auto;color:var(--ink-2);padding:0 5px 0 0;overflow:visible}
 .calgroup{margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
 .calgroup:last-child{border-bottom:none}
 .calgroupname{font-size:11.4px;font-weight:700;font-family:var(--font-head);margin:6px 0 3px}
@@ -282,16 +292,52 @@ textarea{resize:vertical;min-height:70px}
    rev.3) via CSS Paged Media named pages — supported in Chromium's print/
    PDF engine (which this project already assumes for "print-to-PDF from
    browser"; other engines may ignore the named @page and print everything
-   portrait — flag to PO if the team ever prints from Firefox/Safari). */
+   portrait — flag to PO if the team ever prints from Firefox/Safari).
+   2026-07-24 print-fidelity fix: (a) print-color-adjust:exact so the dark
+   covers, score bands, Gantt bars and gridlines survive even when the user
+   hasn't ticked "Background graphics" in the Save-as-PDF dialog (that box is
+   OFF by default and was silently dropping every colour); (b) the print copy
+   now FLOWS in normal position — siblings hidden with display:none, not
+   visibility:hidden over an absolutely-positioned #printArea. The old
+   absolute overlay suppressed the named @page landscape (Chromium ignores
+   `page:` on an out-of-flow box), so the Calendar came out portrait and the
+   Gantt was truncated; in normal flow the landscape page renders landscape.
+
+   2026-08-03 hotfix (PDF orientation): the named `@page landscape` produced a
+   PDF with MIXED page sizes — Chromium's Save-as-PDF writes one A4 portrait
+   sheet and one A4 landscape sheet, which most downstream tools (and the
+   client's own document system) cannot store or reprint as one document. The
+   deliverable is now a single-page-size PDF: EVERY sheet is A4 portrait and
+   the Calendar's CONTENT is rotated 90° inside its portrait sheet (.rot),
+   so the file stays portrait while the Gantt still gets the long edge. The
+   rotation is a user toggle (STATE.pdfCalRotate) — turning it off prints the
+   Calendar upright on the portrait sheet for anyone who wants it that way.
+
+   The #printArea page boxes now carry EXPLICIT A4 content-box dimensions on
+   screen as well as in print (186mm portrait / 272mm rotated long edge, i.e.
+   A4 minus the 12mm margins). That is not cosmetic: fitCalendarLabels()
+   measures the Gantt on screen just before window.print(), so the measured
+   layout has to be the printed layout, not the browser window's width. */
 @page{size:A4 portrait;margin:12mm}
-@page landscape{size:A4 landscape;margin:12mm}
+#printArea .page{box-sizing:border-box;margin:0 auto;background:#fff;font-family:var(--font-doc)}
+#printArea .page.portrait{width:186mm}
+#printArea .page.landscape{width:186mm}
+#printArea .page.landscape .rotwrap{width:100%}
+/* .rotwrap is taken OUT OF FLOW on purpose. A transform does not shrink an
+   element's layout box, so an in-flow 272mm-wide wrapper inside a 185mm page
+   overflows the paper — and Chromium's print engine reacts to that by
+   shrink-to-fitting the WHOLE document to ~68%, which silently miniaturised
+   both pages (found in test, 2026-08-03). Absolute + overflow:hidden keeps
+   the layout box off the page's flow so nothing triggers the auto-scale. */
+#printArea .page.landscape.rot{position:relative;width:185mm;height:272mm;padding:0;overflow:hidden}
+#printArea .page.landscape.rot .rotwrap{position:absolute;top:0;left:0;width:272mm;height:185mm;box-sizing:border-box;transform-origin:top left;transform:translateX(185mm) rotate(90deg)}
 @media print{
-  body *{visibility:hidden}
-  #printArea,#printArea *{visibility:visible}
-  #printArea{position:absolute;top:0;left:0;width:100%;margin:0;padding:0}
-  #printArea .page{box-shadow:none;margin:0;max-width:none;page-break-after:always}
-  #printArea .page:last-child{page-break-after:auto}
-  #printArea .page.landscape{page:landscape}
+  html,body{margin:0;padding:0;background:#fff}
+  body>*{display:none !important}
+  #printArea{display:block !important;position:static;width:100%;margin:0;padding:0}
+  #printArea,#printArea *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
+  #printArea .page{box-shadow:none;page-break-after:always;break-after:page}
+  #printArea .page:last-child{page-break-after:auto;break-after:auto}
 }
 </style>
 </head>
@@ -328,8 +374,11 @@ textarea{resize:vertical;min-height:70px}
    STATE
    ======================================================================= */
 var LANG = 'ro';
+/* pdfCalRotate (2026-08-03): print the Calendar page as rotated content on an
+   A4 PORTRAIT sheet (default, keeps the whole PDF one page size) vs. upright
+   portrait. Session-level, not per-person — one PDF convention per project. */
 var STATE = { people: [], activeId: null, view: 'setup', projectBank: null, bankReviewed: false, pendingImportNames: [],
- assessment: { objectives:{}, methods:null } };
+ pdfCalRotate: true, assessment: { objectives:{}, methods:null } };
 var UID = 1;
 function nid(p){ return (p||'id') + (UID++); }
 
@@ -359,6 +408,7 @@ function doRestoreBackup(){
  if(!ob) return;
  STATE.people = ob.people; STATE.assessment = ob.assessment || {objectives:{},methods:null};
  if(ob.lang) LANG = ob.lang;
+ STATE.people.forEach(recomputeAverages); // 2026-08-03 backfill, see loadSessionFile
  rebuildProjectBank(); STATE.bankReviewed = true; STATE.view = 'roster';
  LAST_SAVED = ''; // restored ≠ saved to file yet
  render();
@@ -484,8 +534,16 @@ var STR = {
  evalScoreM1:{ro:'Text asociat (afișat cu Scor 1)',en:'Paired text (shown with Score 1)'},
  evalScore2:{ro:'Scor 2 (nefolosit)',en:'Score 2 (unused)'},
  methodsCatalogTitle:{ro:'Catalogul de metode',en:'Methods catalog'},
- methodsCatalogSub:{ro:'Editabil — corectează textele sau adaugă metode noi; se salvează în sesiune.',en:'Editable — correct the text or add new methods; saved in the session.'},
+ methodsCatalogSub:{ro:'Editabil — corectează textele sau adaugă metode noi; se salvează în sesiune. Poți încărca un set de metode agreat cu clientul sau salva catalogul curent ca șablon reutilizabil.',en:'Editable — correct the text or add new methods; saved in the session. You can load a set of methods agreed with a client, or save the current catalog as a reusable template.'},
  addMethod:{ro:'+ Adaugă metodă',en:'+ Add method'},
+ methodsLoad:{ro:'Încarcă șablon (.csv)',en:'Load template (.csv)'},
+ methodsSave:{ro:'Salvează catalogul (.csv)',en:'Save catalog (.csv)'},
+ methodsBlank:{ro:'Șablon pentru client',en:'Client template'},
+ methodsIoHint:{ro:'Metodele se potrivesc după denumire (RO): rândurile existente se actualizează, cele noi se adaugă.',en:'Methods match by name (RO): existing rows are updated, new ones are added.'},
+ methodsImportFail:{ro:'Fișierul nu pare un catalog de metode valid (verifică antetul coloanelor).',en:'File doesn\'t look like a valid methods catalog (check the column headers).'},
+ methodsImportedOk:{ro:'metode încărcate',en:'methods loaded'},
+ methodsSaved:{ro:'Catalog salvat',en:'Catalog saved'},
+ methodsBlankDl:{ro:'Șablon de metode descărcat',en:'Methods template downloaded'},
  methodTagsHint:{ro:'Etichete (competențe țintă, separate prin virgulă)',en:'Tags (target competencies, comma-separated)'},
  who:{ro:'Cine face/supervizează',en:'Who performs/oversees'},
  whoPh:{ro:'ex: manager direct',en:'e.g. direct manager'},
@@ -512,7 +570,10 @@ var STR = {
  methodsRare:{ro:'metode — rar modificat',en:'methods — rarely edited'},
  editLbl:{ro:'Editează',en:'Edit'},
  doneLbl:{ro:'Gata',en:'Done'},
- calPreviewSub:{ro:'Previzualizare live — exact cum va arăta pe pagina de print.',en:'Live preview — exactly how it will look on the print page.'}
+ calPreviewSub:{ro:'Previzualizare live — exact cum va arăta pe pagina de print.',en:'Live preview — exactly how it will look on the print page.'},
+ /* 2026-08-03 hotfix strings */
+ rotCalLbl:{ro:'Calendar rotit pe pagină portret (PDF)',en:'Calendar rotated on a portrait page (PDF)'},
+ rotCalHint:{ro:'Toate paginile PDF rămân A4 portret; conținutul calendarului e rotit 90°. Debifează pentru calendar drept, în portret.',en:'Every PDF page stays A4 portrait; the calendar content is rotated 90°. Untick for an upright, portrait calendar.'}
 };
 function t(k){ return (STR[k] && STR[k][LANG]) || k; }
 function setLang(l){ LANG=l; render(); }
@@ -592,7 +653,7 @@ function subLabel(compName,subName){ return (subName && !sameName(subName,compNa
    this is richer (description + when-suitable + target-competency tags)
    and is close to, but not identical with, the platform's newer D31
    catalog (core/shell.js DB.devMethods) — convergence still an open item,
-   see handover/03-open-questions.md §I. EN text is a working translation
+   see 10-project/open-questions.md §I. EN text is a working translation
    of PO's RO source (not separately supplied) — flag if it needs polish.
    ======================================================================= */
 var METHODS_DEFAULT = [
@@ -1086,6 +1147,7 @@ function render(){
  else if(STATE.view==='printall') { app.innerHTML = viewRoster(); doPrintAll(); STATE.view='roster'; }
  else app.innerHTML = restoreBanner()+viewRoster();
  autoBackup();
+ fitCalendarLabels(app); // 2026-08-03: Gantt labels are measured, not guessed
  ap = (typeof activePerson==='function') ? activePerson() : null;
  _lastRenderKey = STATE.view+'|'+STATE.activeId+'|'+(ap?ap.step:'');
  window.scrollTo(0, sameView?scrollY:0);
@@ -1166,6 +1228,12 @@ function viewSetup(){
    '<h3 style="margin:0">'+t('methodsCatalogTitle')+' <span class="note" style="font-weight:400">'+nMethods+' '+t('methodsRare')+'</span></h3>'+
    '<button class="btn btn-ghost btn-sm" onclick="addMethod()">'+t('addMethod')+'</button></div>'+
    '<div class="sub" style="margin:4px 0 8px">'+t('methodsCatalogSub')+'</div>'+
+   '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px">'+
+    '<span class="filebtn btn btn-ghost btn-sm"><span>'+ic('upload')+' '+t('methodsLoad')+'</span><input type="file" accept=".csv,text/csv" onchange="importMethodsFile(this)"></span>'+
+    '<button class="btn btn-ghost btn-sm" onclick="downloadMethodsTemplate()">'+ic('download')+' '+t('methodsSave')+'</button>'+
+    '<button class="btn btn-ghost btn-sm" onclick="downloadMethodsSeed()">'+ic('download')+' '+t('methodsBlank')+'</button>'+
+    '<span class="note" style="flex-basis:100%;margin:2px 0 0">'+t('methodsIoHint')+'</span>'+
+   '</div>'+
    methods.map(function(m,i){
     if(m.free) return '';
     if(METHOD_EDIT===i) return methodEditForm(m,i);
@@ -1201,6 +1269,76 @@ function addMethod(){
  render();
 }
 
+/* =======================================================================
+   Methods template — the same load/save-a-file mechanic competencies have
+   (Vlad 2026-07-24): agree a set of methods with a client, save it as a
+   reusable .csv, load it into any project. CSV format mirrors the evaluation
+   sheet (client-editable in Excel). Columns are bilingual; target
+   competencies are ';'-separated in one cell. The catalog stays fully
+   editable inline and is still saved inside the session file.
+   ======================================================================= */
+var METHODS_CSV_HEADERS = ['Metoda (RO)','Method (EN)','Descriere (RO)','Description (EN)','Potrivita pentru (RO)','Suitable for (EN)','Competente tinta (separate cu ;)'];
+function methodsToCsv(list){
+ var lines=[METHODS_CSV_HEADERS.join(',')];
+ (list||[]).forEach(function(m){
+  if(m.free) return; // the "Altă metodă" free-text escape hatch is a UI element, not catalog data
+  lines.push([m.ro||'', m.en||'', (m.desc&&m.desc.ro)||'', (m.desc&&m.desc.en)||'',
+   (m.suit&&m.suit.ro)||'', (m.suit&&m.suit.en)||'', (m.tags||[]).join('; ')].map(csvCell).join(','));
+ });
+ return lines.join('\n');
+}
+function downloadMethodsTemplate(){
+ downloadFile('plan-metode-catalog.csv', methodsToCsv(getMethods()), 'text/csv');
+ toast('<b>'+t('methodsSaved')+'</b>','ok');
+}
+function downloadMethodsSeed(){
+ // a clean starting point to hand a client — the standard catalog regardless
+ // of the current session's edits
+ downloadFile('sablon-metode.csv', methodsToCsv(METHODS_DEFAULT), 'text/csv');
+ toast('<b>'+t('methodsBlankDl')+'</b>','ok');
+}
+function importMethodsText(text){
+ var rows = csvParse(String(text).replace(/^﻿/,'')).filter(function(r){ return r.some(function(v){return String(v).trim();}); });
+ if(rows.length<2){ toast(t('methodsImportFail'),'err'); return false; }
+ var hdr = rows[0].map(function(h){ return String(h).replace(/^﻿/,'').trim().toLowerCase(); });
+ function col(keys,dflt){ for(var i=0;i<hdr.length;i++){ for(var k=0;k<keys.length;k++){ if(hdr[i].indexOf(keys[k])>=0) return i; } } return dflt; }
+ var iRo=col(['metod','nume','name'],-1), iEn=col(['method'],-1);
+ if(iRo<0 && iEn<0){ toast(t('methodsImportFail'),'err'); return false; } // header has no method-name column → not a methods catalog (also rejects an evaluation sheet dropped here by mistake)
+ if(iRo<0) iRo=iEn; if(iEn<0) iEn=iRo;
+ var iDr=col(['descri'],2), iDe=col(['description'],3),
+     iSr=col(['potriv'],4), iSe=col(['suitable'],5),
+     iTg=col(['competen','tinta','target','tag'],6);
+ var methods=getMethods(), added=0, updated=0;
+ for(var k=1;k<rows.length;k++){
+  var row=rows[k];
+  var ro=String(row[iRo]||'').trim(); if(!ro) continue;
+  var en=String(row[iEn]||'').trim()||ro;
+  var rec={ ro:ro, en:en,
+   desc:{ro:String(row[iDr]||'').trim(), en:String(row[iDe]||'').trim()},
+   suit:{ro:String(row[iSr]||'').trim(), en:String(row[iSe]||'').trim()},
+   tags:String(row[iTg]||'').split(/[;,]/).map(function(s){return s.trim();}).filter(Boolean) };
+  var ex=methods.find(function(x){ return !x.free && String(x.ro||'').trim().toLowerCase()===ro.toLowerCase(); });
+  if(ex){ ex.en=rec.en; ex.desc=rec.desc; ex.suit=rec.suit; ex.tags=rec.tags; updated++; }
+  else {
+   rec.key=nid('m');
+   var fi=methods.findIndex(function(x){return x.free;}); // keep "Altă metodă" last
+   if(fi>=0) methods.splice(fi,0,rec); else methods.push(rec);
+   added++;
+  }
+ }
+ if(!added && !updated){ toast(t('methodsImportFail'),'err'); return false; }
+ METHOD_EDIT=null; render();
+ toast('<b>'+(added+updated)+'</b> '+t('methodsImportedOk')+' (+'+added+' / ↻'+updated+')','ok');
+ return true;
+}
+function importMethodsFile(input){
+ if(typeof FileReader==='undefined'){ toast('Importul de fișiere nu e disponibil în acest mediu.','warn'); return; }
+ var f=input.files&&input.files[0]; if(!f) return;
+ var r=new FileReader();
+ r.onload=function(){ importMethodsText(String(r.result)); };
+ r.readAsText(f); input.value='';
+}
+
 /* ---------- roster ---------- */
 var FILTER = ''; // roster name filter — transient, not part of the session
 function setRosterFilter(v){
@@ -1230,7 +1368,7 @@ function viewRoster(){
    '</td></tr>';
  }).join('');
  return '<div class="pagehead"><div><h1>'+t('rosterTitle')+'</h1><div class="sub">'+t('rosterSub')+'</div></div>'+
-  (STATE.people.length?'<div class="ph-actions"><button class="btn btn-green btn-sm" onclick="printAllGroup()">'+ic('print')+' '+t('printAll')+'</button></div>':'')+
+  (STATE.people.length?'<div class="ph-actions" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+rotToggleHtml()+'<button class="btn btn-green btn-sm" onclick="printAllGroup()">'+ic('print')+' '+t('printAll')+'</button></div>':'')+
   '</div>'+
   '<div class="card">'+
    '<div class="dropzone" id="dz" onclick="document.getElementById(\'fileImport\').click()">'+
@@ -1371,6 +1509,7 @@ function addManualBehavior(p,compName){
  var comp = p.bank.find(function(c){return c.name===compName;}); if(!comp) return;
  var sub = comp.subs[0] || (comp.subs[0]={name:compName,average:null,behaviors:[]});
  sub.behaviors.push({text:'',score:null,comment:''});
+ recomputeAverages(p);
  render();
 }
 function setManualBehaviorField(p,compName,idx,field,v){
@@ -1378,11 +1517,46 @@ function setManualBehaviorField(p,compName,idx,field,v){
  var b = comp.subs[0] && comp.subs[0].behaviors[idx]; if(!b) return;
  if(field==='score') b.score = v===''?null:parseInt(v,10);
  else b[field]=v;
+ recomputeAverages(p);
+ // re-render only on a score change: the graph and the competency cards have
+ // to move. A text change re-render would fire on blur and steal focus from
+ // whatever the consultant tabbed into next.
+ if(field==='score') render();
 }
 function removeManualBehavior(p,compName,idx){
  var comp = p.bank.find(function(c){return c.name===compName;}); if(!comp) return;
  comp.subs[0].behaviors.splice(idx,1);
+ recomputeAverages(p);
  render();
+}
+/* 2026-08-03 hotfix (manual person, no scores on the graph): behaviors typed
+   into the manual editor set b.score but nothing ever derived the competency
+   average from them, so c.average stayed null and c.assessed false — the
+   score graph rendered "neevaluat" with no marker, on the board AND on the
+   printed plan, for every manually added person.
+
+   Scale: behavior scores are raw 0–2 (same as the .xls export's behavior
+   cells); the graph's domain is the export's NORMALIZED 1–5 competency
+   scale. The only linear map between them is 0→1, 1→3, 2→5, i.e.
+   avg5 = 1 + mean(0–2) * 2. Unscored behaviors are ignored, not counted as
+   0 — a half-filled competency averages what was actually rated.
+
+   Imported people keep the average the source system computed: this only
+   ever runs for source==='manual'. */
+function recomputeAverages(p){
+ if(!p || p.source!=='manual') return;
+ (p.bank||[]).forEach(function(c){
+  var all=[];
+  (c.subs||[]).forEach(function(s){
+   var sc=(s.behaviors||[]).map(function(b){return b.score;})
+          .filter(function(v){ return v!=null && v!=='' && !isNaN(v); })
+          .map(Number);
+   s.average = sc.length ? 1 + (sc.reduce(function(a,b){return a+b;},0)/sc.length)*2 : null;
+   all = all.concat(sc);
+  });
+  c.average  = all.length ? 1 + (all.reduce(function(a,b){return a+b;},0)/all.length)*2 : null;
+  c.assessed = all.length > 0;
+ });
 }
 function personMetaFields(p){
  return '<div class="grid2" style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">'+
@@ -1417,6 +1591,7 @@ function copyBankStructure(p){
    return {name:s.name,average:null,behaviors:s.behaviors.map(function(bt){return {text:bt,score:null,comment:''}})};
   })};
  });
+ recomputeAverages(p);
  render();
 }
 
@@ -1583,8 +1758,10 @@ function boardFinal(p){
   '<div style="margin-top:14px;display:flex;gap:9px;flex-wrap:wrap">'+
    '<button class="btn '+(p.finalized?'btn-ghost':'btn-green')+' btn-sm" onclick="activePerson().finalized=!activePerson().finalized;render()">'+(p.finalized?t('markDraft'):t('markFinal'))+'</button>'+
    '<button class="btn btn-aqua btn-sm" onclick="printPerson(activePerson().id)">'+ic('print')+' '+t('print')+'</button>'+
-  '</div></div>'+
-  '<div class="docstage"><div class="page portrait">'+buildObjectivesPage(p)+'</div><div class="page landscape">'+buildCalendarPage(p)+'</div></div>';
+   rotToggleHtml()+
+  '</div>'+
+  '<div class="note">'+t('rotCalHint')+'</div></div>'+
+  '<div class="docstage"><div class="page portrait">'+buildObjectivesPage(p)+'</div><div class="page landscape"><div class="rotwrap">'+buildCalendarPage(p)+'</div></div></div>';
 }
 
 /* =======================================================================
@@ -1668,9 +1845,15 @@ function calendarChartHtml(p,groups){
    var end = addDays(pk.start,+pk.days||0);
    var left = pct(pk.start), width = Math.max(pct(end)-left,2);
    var label = pk.method==='altele' ? (pk.otherText||methodLabel('altele')) : methodLabel(pk.method);
-   var barText = label+' · '+dstr(pk.start)+'–'+dstr(end)+(pk.who?' · '+esc(pk.who):'');
+   // 2026-08-03 hotfix: two label variants carried on the element. "full" is
+   // what goes INSIDE the pill when it is wide enough; "short" drops the
+   // method name (the row label already shows it) and is what spills OUTSIDE
+   // a narrow pill. fitCalendarLabels() picks between them after layout.
+   var dateText = dstr(pk.start)+'–'+dstr(end)+(pk.who?' · '+pk.who:'');
+   var barText  = label+' · '+dateText;
    return '<div class="calrow"><div class="calrowlabel">'+esc(label)+'</div><div class="caltrack">'+gridHtml+
-    '<div class="calbar" style="left:'+left+'%;width:'+width+'%">'+esc(barText)+'</div></div></div>';
+    '<div class="calbar" data-full="'+esc(barText)+'" data-short="'+esc(dateText)+'" style="left:'+left+'%;width:'+width+'%">'+
+     '<span class="calbartxt">'+esc(barText)+'</span></div></div></div>';
   }).join('');
   var ffRow='';
   if(mb.feedbackDate){
@@ -1681,6 +1864,38 @@ function calendarChartHtml(p,groups){
   return '<div class="calgroup"><div class="calgroupname">'+esc(comp)+'</div>'+pickRows+ffRow+'</div>';
  }).join('');
  return headerHtml+bodyHtml;
+}
+/* 2026-08-03 hotfix (dates lost on short duration pills). The bar width is
+   the DURATION — a 2-day method is a few px wide — but it was also the label
+   box, with overflow:hidden, so everything past those few px (including the
+   whole date range) was silently clipped. There is no pure-CSS answer: the
+   available width is a % of a track whose px width only exists after layout.
+   So: render, then measure. Must run AFTER the nodes are in the document and
+   AFTER the brand fonts resolve (a Poppins→fallback swap changes text width),
+   which is why printWhenReady() calls it on the print copy rather than the
+   markup builder doing it inline.
+   Placement rule: keep the full label inside while it fits; otherwise show
+   the short (dates-only) label outside the pill — to the right when the track
+   has room there, to the left when the bar sits near the end of the track. */
+function fitCalendarLabels(root){
+ if(!root || !root.querySelectorAll) return;
+ [].slice.call(root.querySelectorAll('.calbar')).forEach(function(bar){
+  var txt = bar.querySelector('.calbartxt'); if(!txt) return;
+  bar.classList.remove('lbl-right','lbl-left');
+  txt.textContent = bar.getAttribute('data-full') || txt.textContent;
+  if(txt.scrollWidth <= bar.clientWidth) return;           // fits inside — done
+  txt.textContent = bar.getAttribute('data-short') || txt.textContent;
+  var track = bar.parentNode;
+  var need  = txt.scrollWidth + 8;
+  var roomRight = track.clientWidth - (bar.offsetLeft + bar.offsetWidth);
+  bar.classList.add((roomRight >= need || bar.offsetLeft < need) ? 'lbl-right' : 'lbl-left');
+ });
+ // same clipping risk on the final-feedback star label at the domain edges
+ [].slice.call(root.querySelectorAll('.calstarlabel')).forEach(function(sl){
+  var track = sl.parentNode, w = sl.offsetWidth, x = sl.offsetLeft;
+  if(x - w/2 < 0) sl.style.transform = 'translateX(0)';
+  else if(x + w/2 > track.clientWidth) sl.style.transform = 'translateX(-100%)';
+ });
 }
 function buildCalendarPage(p){
  var groups = p.sel.filter(function(c){ return p.methods[c] && p.methods[c].picks.length; });
@@ -1698,23 +1913,57 @@ function buildCalendarPage(p){
   '<div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div>'+
  '</div>';
 }
-function personPagesHtml(p){
- return '<div class="page portrait">'+buildObjectivesPage(p)+'</div><div class="page landscape">'+buildCalendarPage(p)+'</div>';
+/* 2026-08-03: the Calendar page's content lives in a .rotwrap so the print
+   copy can rotate the CONTENT (class .rot on the page) instead of asking the
+   PDF engine for a second, landscape page size. `forPrint` is false for the
+   on-screen preview, which stays a wide landscape card as before. */
+function personPagesHtml(p,forPrint){
+ var rot = (forPrint && STATE.pdfCalRotate!==false) ? ' rot' : '';
+ return '<div class="page portrait">'+buildObjectivesPage(p)+'</div>'+
+        '<div class="page landscape'+rot+'"><div class="rotwrap">'+buildCalendarPage(p)+'</div></div>';
+}
+/* 2026-07-24 print-fidelity fix: wait for the brand fonts AND every image in
+   the print copy (BHB logos, the objectives illustration) to finish loading
+   before opening the print dialog. The old fixed 50 ms timer fired while the
+   dark cover's white logo and the webp illustration were often still decoding,
+   so they printed blank / in a fallback font. */
+function printWhenReady(area){
+ var imgs=[].slice.call(area.querySelectorAll('img'));
+ var waits=imgs.map(function(im){
+  if(im.complete && im.naturalWidth>0) return Promise.resolve();
+  if(im.decode) return im.decode().catch(function(){});
+  return new Promise(function(res){ im.onload=im.onerror=res; });
+ });
+ var fonts=(document.fonts&&document.fonts.ready)?document.fonts.ready:Promise.resolve();
+ var safety=new Promise(function(res){ setTimeout(res,3000); }); // never hang if an asset stalls
+ Promise.race([Promise.all([fonts].concat(waits)), safety]).then(function(){
+  // 2026-08-03: measure the Gantt labels here — the print copy is in the
+  // document at its true A4 dimensions and the brand fonts have resolved, so
+  // what we measure is what the PDF gets.
+  fitCalendarLabels(area);
+  requestAnimationFrame(function(){ window.print(); area.style.display='none'; });
+ });
 }
 function printPerson(id){
  var p = STATE.people.find(function(x){return x.id===id});
  if(!p) return;
  var area=document.getElementById('printArea');
- area.innerHTML = personPagesHtml(p);
+ area.innerHTML = personPagesHtml(p,true);
  area.style.display='block';
- setTimeout(function(){ window.print(); area.style.display='none'; },50);
+ printWhenReady(area);
 }
 function printAllGroup(){ STATE.view='printall'; render(); }
 function doPrintAll(){
  var area=document.getElementById('printArea');
- area.innerHTML = STATE.people.map(function(p){ return personPagesHtml(p); }).join('');
+ area.innerHTML = STATE.people.map(function(p){ return personPagesHtml(p,true); }).join('');
  area.style.display='block';
- setTimeout(function(){ window.print(); area.style.display='none'; },50);
+ printWhenReady(area);
+}
+function setCalRotate(v){ STATE.pdfCalRotate = !!v; render(); }
+function rotToggleHtml(){
+ return '<label style="display:inline-flex;align-items:center;gap:7px;font-size:11.6px;color:var(--muted);cursor:pointer">'+
+  '<input type="checkbox" style="width:auto;margin:0" '+(STATE.pdfCalRotate!==false?'checked':'')+' onchange="setCalRotate(this.checked)">'+
+  t('rotCalLbl')+'</label>';
 }
 
 /* =======================================================================
@@ -1724,7 +1973,7 @@ function saveSessionFile(){
  // includes the assessment definition (objectives + methods catalog,
  // brief §Assessment setup page rev.3) alongside the group, so a session
  // reopened later has both the people AND the setup-page config.
- var payload = { v:2, lang:LANG, people:STATE.people, assessment:STATE.assessment };
+ var payload = { v:2, lang:LANG, people:STATE.people, assessment:STATE.assessment, pdfCalRotate:STATE.pdfCalRotate!==false };
  downloadFile('plan-dezvoltare-sesiune-'+todayISO()+'.json', JSON.stringify(payload,null,2), 'application/json');
  LAST_SAVED = snapshot();
  toast('<b>'+t('sessionSaved')+'</b>','ok');
@@ -1741,6 +1990,10 @@ function loadSessionFile(input){
    STATE.people = obj.people;
    STATE.activeId=null; STATE.view='roster';
    if(obj.lang) LANG=obj.lang;
+   STATE.pdfCalRotate = (obj.pdfCalRotate===undefined) ? true : !!obj.pdfCalRotate;
+   // sessions saved before the 2026-08-03 fix carry manual people whose
+   // competency averages were never derived — backfill on open.
+   STATE.people.forEach(recomputeAverages);
    // v1 sessions (pre-rev.3) have no assessment block — start with a fresh
    // one (empty objectives, default methods catalog) rather than failing.
    STATE.assessment = obj.assessment || {objectives:{},methods:null};
@@ -1759,7 +2012,7 @@ function newSession(){
 }
 function resetSession(){
  STATE = { people: [], activeId: null, view: 'setup', projectBank:null, bankReviewed:false, pendingImportNames:[],
-  assessment: { objectives:{}, methods:null } };
+  pdfCalRotate: true, assessment: { objectives:{}, methods:null } };
  LAST_SAVED=''; _lastBackup=''; RESTORE_OFFER=null;
  SETUP_SUMMARY=null; SETUP_OPEN={}; SETUP_ALL={}; METHOD_EDIT=null; // transient setup-page UI state
  try{ localStorage.removeItem(BACKUP_KEY); }catch(e){}
@@ -1800,6 +2053,17 @@ window.addEventListener('beforeunload',function(e){
 });
 setInterval(autoBackup, 20000);
 render();
+/* 2026-08-03: the first render can land before the brand fonts resolve, and
+   the on-screen preview's track width changes with the window — re-measure
+   the Gantt labels in both cases. */
+if(document.fonts && document.fonts.ready){
+ document.fonts.ready.then(function(){ fitCalendarLabels(document.getElementById('app')); });
+}
+var _refitT=null;
+window.addEventListener('resize',function(){
+ clearTimeout(_refitT);
+ _refitT=setTimeout(function(){ fitCalendarLabels(document.getElementById('app')); },150);
+});
 </script>
 </body>
 </html>
