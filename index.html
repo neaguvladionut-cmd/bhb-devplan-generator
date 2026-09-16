@@ -174,15 +174,13 @@ textarea{resize:vertical;min-height:70px}
 .docstage .page{background:#fff;box-shadow:0 2px 14px rgba(20,30,60,.2);border-radius:3px;margin:0 auto 24px;padding:26px 30px;max-width:780px;width:100%;font-family:var(--font-doc)}
 .docstage .page.landscape{max-width:1040px}
 .docstage .page:last-child{margin-bottom:0}
-.pdoc .rcover{border-radius:10px;background:var(--ink);color:#fff;padding:18px 22px;position:relative;overflow:hidden;margin-bottom:16px}
+.pdoc .rcover{border-radius:10px;background:#fff;color:var(--ink);border:1px solid var(--line);padding:18px 22px;position:relative;overflow:hidden;margin-bottom:16px}
 .pdoc .rcover .rbar{height:5px;border-radius:4px;background:var(--grad);margin-bottom:14px}
 .pdoc .rcover .reyebrow{font-size:9.6px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;opacity:.75}
 .pdoc .rcover h2{font-size:23px;font-weight:800;letter-spacing:-.4px;margin:4px 0 3px}
-.pdoc .rcover .rmeta{font-size:11.4px;opacity:.85}
+.pdoc .rcover .rmeta{font-size:11.4px;color:var(--muted);opacity:1}
 .pdoc h4.rsec{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--aqua-dd);font-weight:800;margin:16px 0 7px;display:flex;align-items:center;gap:8px}
 .pdoc h4.rsec::after{content:"";flex:1;height:1.5px;background:var(--line)}
-.pdoc .compband{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);border-radius:9px;padding:6px 10px;margin:0 8px 8px 0;font-size:11px}
-.pdoc .compband b{font-family:var(--font-head)}
 .pdoc ul.pbeh{list-style:none;margin:0 0 4px}
 .pdoc ul.pbeh li{font-size:11px;padding:3px 0 3px 14px;position:relative;line-height:1.4}
 .pdoc ul.pbeh li::before{content:"–";position:absolute;left:0;color:var(--aqua-dd)}
@@ -237,7 +235,12 @@ textarea{resize:vertical;min-height:70px}
 .sgmark{position:absolute;top:1px;bottom:1px;width:6%;min-width:5px;border-radius:2px;background:var(--ink);box-shadow:0 0 0 1.5px #fff}
 .sgval{font-size:10.4px;color:var(--muted);text-align:right;margin-top:2px}
 .pdoc .sgname{font-size:10.6px}
+.pdoc .sgname>span:first-child{color:var(--aqua-dd);border-left:3px solid var(--aqua);padding-left:6px}
 .pdoc .sgval{font-size:9.4px}
+.pdoc .method-summary{font-size:10.4px;line-height:1.35}
+.pdoc .method-summary-group{margin:0 0 6px;break-inside:avoid}
+.pdoc .method-summary-group:last-child{margin-bottom:0}
+.pdoc .method-summary-group .pbeh{margin-bottom:0}
 
 /* ---------- priority-behavior curation (anti-overwhelm, 2026-07-13 rev) ---------- */
 .behgroup{border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:11px}
@@ -442,17 +445,16 @@ var STR = {
  saveSession:{ro:'Salvează sesiunea',en:'Save session'},
  newSession:{ro:'Sesiune nouă',en:'New session'},
  rosterTitle:{ro:'Grup de dezvoltare',en:'Development group'},
- rosterSub:{ro:'Importă rezultatele evaluării (fișiere .xls, unul sau mai multe) sau adaugă o persoană manual. Fiecare persoană are propria planșă interactivă.',en:'Import evaluation results (.xls files, one or more) or add a person manually. Each person gets their own interactive board.'},
+ rosterSub:{ro:'Importă rezultatele evaluării (fișiere .xls, unul sau mai multe). Pentru o persoană fără import, folosește Configurare.',en:'Import evaluation results (.xls files, one or more). For a person without an import, use Setup.'},
  dropTitle:{ro:'Trage fișierele .xls aici',en:'Drop .xls files here'},
  dropSub:{ro:'sau apasă pentru a alege — exportul de participant din platforma veche',en:'or click to choose — the legacy platform\'s participant export'},
- addManual:{ro:'+ Adaugă persoană manuală',en:'+ Add person manually'},
  colName:{ro:'Persoană',en:'Person'},
  colStatus:{ro:'Stadiu',en:'Status'},
  colComp:{ro:'Competențe alese',en:'Competencies selected'},
  open:{ro:'Deschide →',en:'Open →'},
  remove:{ro:'Șterge',en:'Remove'},
  rosterEmpty:{ro:'Niciun import încă',en:'No imports yet'},
- rosterEmptySub:{ro:'Importă fișiere .xls sau adaugă o persoană manual ca să pornești primul plan.',en:'Import .xls files or add a person manually to start the first plan.'},
+ rosterEmptySub:{ro:'Importă fișiere .xls ca să pornești primul plan sau mergi la Configurare pentru a adăuga o persoană fără import.',en:'Import .xls files to start the first plan, or go to Setup to add a person without an import.'},
  statusNotStarted:{ro:'neînceput',en:'not started'},
  statusInProgress:{ro:'în lucru',en:'in progress'},
  statusDone:{ro:'finalizat',en:'done'},
@@ -519,6 +521,9 @@ var STR = {
  project:{ro:'Proiect',en:'Project'},
  setupTitle:{ro:'Configurare evaluare',en:'Assessment setup'},
  setupSub:{ro:'Competențe, comportamente, texte de obiectiv și catalogul de metode — se aplică întregului grup. Importă o fișă de evaluare completată, sau completează manual pe măsură ce adaugi persoane.',en:'Competencies, behaviors, objective texts, and the methods catalog — applies to the whole group. Import a filled evaluation sheet, or fill in manually as you add people.'},
+ setupManualTitle:{ro:'Adaugă participant fără import',en:'Add a participant without an import'},
+ setupManualSub:{ro:'Creează o persoană goală, apoi completează competențele și obiectivele pe planșa ei.',en:'Create a blank participant, then complete competencies and objectives on their board.'},
+ addManual:{ro:'+ Adaugă persoană manuală',en:'+ Add person manually'},
  setupContinue:{ro:'Continuă la grup →',en:'Continue to group →'},
  setupNav:{ro:'Configurare',en:'Setup'},
  evalSheetTitle:{ro:'Fișa de evaluare — texte de obiectiv',en:'Evaluation sheet — objective texts'},
@@ -551,6 +556,8 @@ var STR = {
  objectivesStep:{ro:'Obiective',en:'Objectives'},
  pageCalendar:{ro:'Calendar',en:'Calendar'},
  pageObjectives:{ro:'Obiective',en:'Objectives'},
+ appliedMethods:{ro:'Metode aplicate',en:'Applied methods'},
+ appliedMethodDays:{ro:'zile',en:'days'},
  restoreFound:{ro:'Există o copie de siguranță nesalvată din sesiunea anterioară.',en:'An unsaved automatic backup from the previous session was found.'},
  restore:{ro:'Restaurează',en:'Restore'},
  discard:{ro:'Ignoră',en:'Dismiss'},
@@ -1244,9 +1251,12 @@ function viewSetup(){
       '<button class="btn btn-ghost btn-sm" onclick="editMethod('+i+')">'+t('editLbl')+'</button></div></div>';
    }).join('')+
   '</div>';
+ var manualCard = '<div class="card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
+  '<div style="flex:1;min-width:220px"><h3 style="margin:0 0 3px">'+t('setupManualTitle')+'</h3><div class="sub">'+t('setupManualSub')+'</div></div>'+
+  '<button class="btn btn-aqua btn-sm" onclick="addManualPerson()">'+t('addManual')+'</button></div>';
  return '<div class="pagehead"><div><h1>'+t('setupTitle')+'</h1><div class="sub">'+t('setupSub')+'</div></div>'+
   '<div class="ph-actions"><button class="btn btn-green btn-big" onclick="STATE.view=\'roster\';render()">'+t('setupContinue')+'</button></div></div>'+
-  importCard+evalSection+methodsSection;
+  importCard+manualCard+evalSection+methodsSection;
 }
 function methodEditForm(m,i){
  return '<div class="medit">'+
@@ -1375,7 +1385,6 @@ function viewRoster(){
     '<b>'+t('dropTitle')+'</b>'+t('dropSub')+
     '<input type="file" id="fileImport" accept=".xls" multiple style="display:none" onchange="handleImportFiles(this.files);this.value=\'\'">'+
    '</div>'+
-   '<div style="margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="addManualPerson()">'+t('addManual')+'</button></div>'+
   '</div>'+
   '<div class="card">'+
    (STATE.people.length>5 ? '<input type="text" placeholder="'+t('filterPh')+'" value="'+esc(FILTER)+'" style="max-width:280px;margin-bottom:10px" oninput="setRosterFilter(this.value)">' : '')+
@@ -1771,12 +1780,6 @@ function boardFinal(p){
    landscape = Calendar alone, month-grid, one row per method pick. Plan
    output stays RO regardless of UI language (approved DoD point 6/7).
    ======================================================================= */
-/* real BHB logo on the print covers (D70 — the plan is a client-facing
-   consulting deliverable); white no-descriptor variant on the dark cover,
-   silently absent if the asset isn't found. */
-function rcoverLogo(){
- return '<img class="rlogo" src="assets/logos/bhb-logo-nodesc-white.png" alt="" onerror="this.remove()">';
-}
 var MONTH_LABELS = {
  ro:['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'],
  en:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -1805,18 +1808,33 @@ function buildObjectivesPage(p){
    }).join('')+
   '</ul></div>';
  }).join('') || '<p style="font-size:11px;color:var(--muted)">—</p>';
+ var methodSummary = appliedMethodsHtml(p);
  var fullName = ((p.meta.firstname||'')+' '+(p.meta.lastname||'')).trim() || '—';
  return '<div class="pdoc">'+
-  '<div class="rcover"><div class="rbar"></div>'+rcoverLogo()+'<div class="reyebrow">'+t('planTitle')+'</div>'+
+  '<div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('planTitle')+'</div>'+
    '<h2>'+esc(fullName)+'</h2>'+
    '<div class="rmeta">'+esc(p.meta.position||'')+(p.meta.project?' · '+esc(p.meta.project):'')+' · '+dstr(p.planDate)+'</div>'+
   '</div>'+
   '<div class="objillu"><img src="assets/illustrations/bhb-competency-profiler-report-illustration.webp" alt=""></div>'+
   '<h4 class="rsec">'+t('pageObjectives')+'</h4>'+behHtml+
   '<h4 class="rsec">Scor pe competențe</h4>'+(p.sel.length?scoreGraphSection(p.bank,p.sel,false):'<p style="font-size:11px;color:var(--muted)">—</p>')+
+  methodSummary+
   '<h4 class="rsec">Comentarii</h4><div class="cmtbox">'+esc(p.notes||'—')+'</div>'+
   '<div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div>'+
  '</div>';
+}
+function appliedMethodsHtml(p){
+ var groups=(p.sel||[]).map(function(comp){
+  var mb=p.methods&&p.methods[comp];
+  if(!mb || !Array.isArray(mb.picks) || !mb.picks.length) return '';
+  var rows=mb.picks.map(function(pk){
+   var rawLabel=pk.method==='altele' ? (pk.otherText||methodLabel('altele')) : methodLabel(pk.method);
+   var duration=Number(pk.days); if(!isFinite(duration)) duration=0;
+   return '<li><span class="method-summary-label">'+esc(rawLabel)+'</span> · '+esc(duration)+' '+esc(t('appliedMethodDays'))+(pk.who?' · '+esc(pk.who):'')+'</li>';
+  }).join('');
+  return rows?'<div class="method-summary-group"><b>'+esc(comp)+'</b><ul class="pbeh">'+rows+'</ul></div>':'';
+ }).join('');
+ return groups?'<h4 class="rsec">'+t('appliedMethods')+'</h4><div class="method-summary">'+groups+'</div>':'';
 }
 /* shared month-grid Gantt renderer (2026-07-14 polish, DoD 4): used by the
    print Calendar page AND as a live preview on the Timeline step, so the
@@ -1905,7 +1923,7 @@ function buildCalendarPage(p){
    '<p style="font-size:11px;color:var(--muted)">—</p></div>';
  }
  return '<div class="pdoc caldoc">'+
-  '<div class="rcover"><div class="rbar"></div>'+rcoverLogo()+'<div class="reyebrow">'+t('pageCalendar')+'</div>'+
+  '<div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('pageCalendar')+'</div>'+
    '<h2>'+esc(fullName)+'</h2>'+
    '<div class="rmeta">'+esc(p.meta.position||'')+(p.meta.project?' · '+esc(p.meta.project):'')+' · '+dstr(p.planDate)+'</div>'+
   '</div>'+
