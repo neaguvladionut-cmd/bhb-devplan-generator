@@ -556,6 +556,9 @@ var STR = {
  objectivesStep:{ro:'Obiective',en:'Objectives'},
  pageCalendar:{ro:'Calendar',en:'Calendar'},
  pageObjectives:{ro:'Obiective',en:'Objectives'},
+ scoreSection:{ro:'Scor pe competențe',en:'Competency scores'},
+ commentsSection:{ro:'Comentarii',en:'Comments'},
+ continuation:{ro:'continuare',en:'continuation'},
  appliedMethods:{ro:'Metode aplicate',en:'Applied methods'},
  appliedMethodDays:{ro:'zile',en:'days'},
  restoreFound:{ro:'Există o copie de siguranță nesalvată din sesiunea anterioară.',en:'An unsaved automatic backup from the previous session was found.'},
@@ -1794,9 +1797,11 @@ function monthTicks(minIso,maxIso){
  }
  return out;
 }
-function buildObjectivesPage(p){
+function buildObjectivesPage(p,subset,opts){
+ opts=opts||{};
+ var selected = subset || p.sel || [];
  var behByComp = {};
- (p.priority||[]).filter(function(r){return r.included}).forEach(function(r){
+ (p.priority||[]).filter(function(r){return r.included && selected.indexOf(r.comp)>=0}).forEach(function(r){
   (behByComp[r.comp]=behByComp[r.comp]||[]).push(r);
  });
  // brief §5: Objectives shown with NO "(score x)" — score-matched text only.
@@ -1808,23 +1813,24 @@ function buildObjectivesPage(p){
    }).join('')+
   '</ul></div>';
  }).join('') || '<p style="font-size:11px;color:var(--muted)">—</p>';
- var methodSummary = appliedMethodsHtml(p);
+ behHtml = '<div class="objectives-content">'+behHtml+'</div>';
+ var methodSummary = appliedMethodsHtml(p,selected);
  var fullName = ((p.meta.firstname||'')+' '+(p.meta.lastname||'')).trim() || '—';
+ var pageLabel = opts.continuation ? t('pageObjectives')+' · '+t('continuation') : t('pageObjectives');
+ var score = opts.showScore===false ? '' : '<h4 class="rsec">'+t('scoreSection')+'</h4>'+(selected.length?scoreGraphSection(p.bank,selected,false):'<p style="font-size:11px;color:var(--muted)">—</p>');
+ var notes = opts.showNotes===false ? '' : '<h4 class="rsec">'+t('commentsSection')+'</h4><div class="cmtbox">'+esc(p.notes||'—')+'</div>';
  return '<div class="pdoc">'+
-  '<div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('planTitle')+'</div>'+
+  '<div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('planTitle')+' · '+pageLabel+'</div>'+
    '<h2>'+esc(fullName)+'</h2>'+
    '<div class="rmeta">'+esc(p.meta.position||'')+(p.meta.project?' · '+esc(p.meta.project):'')+' · '+dstr(p.planDate)+'</div>'+
   '</div>'+
-  '<div class="objillu"><img src="assets/illustrations/bhb-competency-profiler-report-illustration.webp" alt=""></div>'+
-  '<h4 class="rsec">'+t('pageObjectives')+'</h4>'+behHtml+
-  '<h4 class="rsec">Scor pe competențe</h4>'+(p.sel.length?scoreGraphSection(p.bank,p.sel,false):'<p style="font-size:11px;color:var(--muted)">—</p>')+
-  methodSummary+
-  '<h4 class="rsec">Comentarii</h4><div class="cmtbox">'+esc(p.notes||'—')+'</div>'+
+  (opts.illustration===false?'':'<div class="objillu"><img src="assets/illustrations/bhb-competency-profiler-report-illustration.webp" alt=""></div>')+
+  '<h4 class="rsec">'+pageLabel+'</h4>'+behHtml+score+methodSummary+notes+
   '<div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div>'+
  '</div>';
 }
-function appliedMethodsHtml(p){
- var groups=(p.sel||[]).map(function(comp){
+function appliedMethodsHtml(p,selected){
+ var groups=(selected||p.sel||[]).map(function(comp){
   var mb=p.methods&&p.methods[comp];
   if(!mb || !Array.isArray(mb.picks) || !mb.picks.length) return '';
   var rows=mb.picks.map(function(pk){
@@ -1937,7 +1943,29 @@ function buildCalendarPage(p){
    on-screen preview, which stays a wide landscape card as before. */
 function personPagesHtml(p,forPrint){
  var rot = (forPrint && STATE.pdfCalRotate!==false) ? ' rot' : '';
- return '<div class="page portrait">'+buildObjectivesPage(p)+'</div>'+
+ var longNotes = forPrint && ((p.notes||'').split('\n').length>12 || String(p.notes||'').length>900);
+ var portrait = '';
+ if(!forPrint || (p.sel||[]).length<=3){
+  portrait = '<div class="page portrait">'+buildObjectivesPage(p,null,{showNotes:!longNotes})+'</div>';
+ } else {
+  var chunks=[];
+  chunks.push((p.sel||[]).slice(0,3));
+  for(var i=3;i<(p.sel||[]).length;i+=4) chunks.push((p.sel||[]).slice(i,i+4));
+  portrait = chunks.map(function(group,idx){
+   var last=idx===chunks.length-1;
+   return '<div class="page portrait">'+buildObjectivesPage(p,group,{continuation:idx>0,showScore:idx===0,showNotes:last&&!longNotes,illustration:idx===0})+'</div>';
+  }).join('');
+ }
+ if(longNotes){
+  var noteLines=String(p.notes||'').split('\n'), notePages=[];
+  for(var n=0;n<noteLines.length;n+=12){
+   var chunk=noteLines.slice(n,n+12).join('\n');
+   var noteName=((p.meta.firstname||'')+' '+(p.meta.lastname||'')).trim() || '—';
+   notePages.push('<div class="page portrait"><div class="pdoc"><div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('planTitle')+' · '+t('commentsSection')+' · '+t('continuation')+'</div><h2>'+esc(noteName)+'</h2><div class="rmeta">'+esc(p.meta.position||'')+(p.meta.project?' · '+esc(p.meta.project):'')+' · '+dstr(p.planDate)+'</div></div><h4 class="rsec">'+t('commentsSection')+'</h4><div class="cmtbox">'+esc(chunk)+'</div><div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div></div></div>');
+  }
+  portrait += notePages.join('');
+ }
+ return portrait+
         '<div class="page landscape'+rot+'"><div class="rotwrap">'+buildCalendarPage(p)+'</div></div>';
 }
 /* 2026-07-24 print-fidelity fix: wait for the brand fonts AND every image in

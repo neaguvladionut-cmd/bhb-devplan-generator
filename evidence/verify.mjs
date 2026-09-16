@@ -60,9 +60,82 @@ async function exercise(url, label) {
   await page.pdf({path: path.join(root, 'evidence', `${label}.pdf`), format: 'A4', printBackground: true});
   await page.screenshot({path: path.join(root, 'evidence', `${label}.png`), fullPage: true});
 }
+async function stress(url, label, count = 10) {
+  await page.emulateMedia({media: 'screen'});
+  await page.goto(url, {waitUntil: 'load'});
+  await page.evaluate((count) => {
+    const p = blankPerson('manual');
+    p.meta.firstname = 'Stress'; p.meta.lastname = 'Fixture'; p.meta.position = 'Consultant'; p.meta.project = '10 competency regression';
+    p.bank = []; p.sel = []; p.priority = []; p.methods = {};
+    for (let i = 1; i <= count; i++) {
+      const comp = `Competența ${i} — etichetă română lungă pentru verificarea paginării`;
+      p.bank.push({name: comp, average: i === 10 ? null : 1 + i * .35, assessed: i !== 10, subs: []});
+      p.sel.push(comp);
+      p.priority.push({comp, sub: '', text: `Obiectiv ${i}: text românesc lung și realist pentru cazul maxim de imprimare`, included: true});
+      p.methods[comp] = {picks: [
+        {method: 'coaching', otherText: '', start: '2026-09-01', days: 14, who: i === 2 ? '' : `Responsabil ${i} cu un nume suficient de lung`},
+        {method: 'feedback360', otherText: '', start: '2026-09-15', days: 10, who: `Coordonator ${i}`},
+        {method: 'altele', otherText: i === 1 ? 'Metodă "<script> & linie\\nurmătoare' : `Metodă personalizată ${i} cu etichetă lungă`, start: '2026-09-25', days: 7, who: ''}
+      ]};
+    }
+    p.notes = Array.from({length: 25}, (_, n) => `Linia de notă ${n + 1}: comentariu lung păstrat cu întreruperi explicite.`).join('\n');
+    STATE.people = [p]; STATE.activeId = p.id; STATE.view = 'board'; render();
+    setLang('en');
+    document.getElementById('printArea').innerHTML = personPagesHtml(p, true);
+    document.getElementById('printArea').style.display = 'block';
+  }, count);
+  await page.emulateMedia({media: 'print'});
+  const result = await page.evaluate(() => ({
+    pages: document.querySelectorAll('#printArea .page').length,
+    objectives: document.querySelectorAll('#printArea .objectives-content>div').length,
+    methodGroups: document.querySelectorAll('#printArea .method-summary-group').length,
+    enHeading: document.querySelector('#printArea .method-summary')?.previousElementSibling?.textContent || '',
+    enScore: document.querySelector('#printArea .rsec')?.textContent || '',
+    objectiveHeight: document.querySelector('#printArea .page.portrait')?.getBoundingClientRect().height || 0,
+    objectiveWidth: document.querySelector('#printArea .page.portrait')?.getBoundingClientRect().width || 0,
+    blocks: [...document.querySelectorAll('#printArea .page.portrait .pdoc>*')].map(x => [x.className || x.tagName, Math.round(x.getBoundingClientRect().height)])
+    ,grid: [...document.querySelectorAll('#printArea .page.portrait .sgwrap, #printArea .page.portrait .method-summary')].map(x => [x.className, getComputedStyle(x).display, getComputedStyle(x).gridTemplateColumns])
+    ,groupHeights: [...document.querySelectorAll('#printArea .page.portrait .objectives-content>div, #printArea .page.portrait .method-summary-group')].map(x => Math.round(x.getBoundingClientRect().height))
+  }));
+  console.log(`${label} stress layout`, JSON.stringify(result));
+  const expectedPages = 5 + Math.ceil(Math.max(0, count - 3) / 4);
+  if (result.pages !== expectedPages || result.objectives !== count || result.methodGroups !== count) throw new Error(`stress DOM ${JSON.stringify(result)}`);
+  if (!result.enHeading.includes('Applied methods') || !result.enScore.includes('Objectives')) throw new Error(`EN labels ${JSON.stringify(result)}`);
+  await page.pdf({path: path.join(root, 'evidence', `${label}-stress.pdf`), format: 'A4', printBackground: true});
+  await page.screenshot({path: path.join(root, 'evidence', `${label}-stress.png`), fullPage: true});
+  checks.push(`PASS ${label} exact 10/30 stress DOM and EN labels`);
+}
+async function group(url, label) {
+  await page.emulateMedia({media: 'screen'});
+  await page.goto(url, {waitUntil: 'load'});
+  await page.evaluate(() => {
+    function fixture(first, last) {
+      const p = blankPerson('manual'); p.meta.firstname = first; p.meta.lastname = last;
+      p.bank = [{name: 'Leadership', average: 3.2, assessed: true, subs: []}]; p.sel = ['Leadership'];
+      p.priority = [{comp: 'Leadership', sub: '', text: 'Obiectiv de grup', included: true}];
+      p.methods = {Leadership: {picks: [{method: 'coaching', start: '2026-09-01', days: 7, who: 'Manager'}]}};
+      return p;
+    }
+    const first = fixture('Primul', 'Participant'); const second = fixture('Al doilea', 'Participant');
+    STATE.people = [first, second]; STATE.activeId = first.id; STATE.pdfCalRotate = true;
+    document.getElementById('printArea').innerHTML = STATE.people.map(p => personPagesHtml(p, true)).join('');
+    document.getElementById('printArea').style.display = 'block';
+  });
+  const result = await page.evaluate(() => ({pages: document.querySelectorAll('#printArea .page').length, text: document.getElementById('printArea').textContent}));
+  if (result.pages !== 4 || result.text.indexOf('Primul Participant') > result.text.indexOf('Al doilea Participant')) throw new Error(`group boundaries ${JSON.stringify(result)}`);
+  await page.emulateMedia({media: 'print'});
+  await page.pdf({path: path.join(root, 'evidence', `${label}-group.pdf`), format: 'A4', printBackground: true});
+  checks.push(`PASS ${label} multi-person group boundaries`);
+}
 await exercise(html, 'file');
+await stress(html, 'file');
 await page.emulateMedia({media: 'screen'});
 await exercise(`http://127.0.0.1:${port}/`, 'http');
+await stress(`http://127.0.0.1:${port}/`, 'http');
+await stress(html, 'file-adversarial', 12);
+await stress(`http://127.0.0.1:${port}/`, 'http-adversarial', 12);
+await group(html, 'file');
+await group(`http://127.0.0.1:${port}/`, 'http');
 await browser.close(); server.close();
 fs.writeFileSync(path.join(root, 'evidence', 'builder-checks.txt'), checks.join('\n') + '\n');
 console.log(checks.join('\n'));

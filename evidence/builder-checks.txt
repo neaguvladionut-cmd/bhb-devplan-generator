@@ -1,6 +1,12 @@
 PASS file launch
 PASS file setup manual action
 PASS file escaped methods and score graph
+PASS file exact 10/30 stress DOM and EN labels
 PASS http launch
 PASS http setup manual action
 PASS http escaped methods and score graph
+PASS http exact 10/30 stress DOM and EN labels
+PASS file-adversarial exact 10/30 stress DOM and EN labels
+PASS http-adversarial exact 10/30 stress DOM and EN labels
+PASS file multi-person group boundaries
+PASS http multi-person group boundaries
