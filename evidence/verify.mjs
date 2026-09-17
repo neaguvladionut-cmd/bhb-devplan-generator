@@ -90,16 +90,33 @@ async function migrationAndPersistence(url, label) {
       const conflict={v:2,people:[legacy('Alpha','One'),legacy('Beta','Two')],assessment:{objectives:{},methods:null}};
       applySessionPayload(conflict,false);
       const two={value:STATE.groupProject,conflict:STATE.migration.conflict,audit:STATE.migration.legacyProjectAudit.map(x=>x.value)};
+      STATE.view='roster'; render(); const blankWarning=!!document.querySelector('.warnbox'); setGroupProject('');
+      const blankStillConflict=STATE.migration.conflict && !!document.querySelector('.warnbox');
+      setGroupProject('Resolved Project');
+      const resolved={value:STATE.groupProject,conflict:STATE.migration.conflict,audit:STATE.migration.legacyProjectAudit.map(x=>x.value),warning:!!document.querySelector('.warnbox')};
       const v3={v:3,groupProject:'Gamma',migration:{legacyProjectAudit:[],conflict:false},people:[blankPerson('manual')],assessment:{objectives:{},methods:null}};
       applySessionPayload(v3,false); const snap=snapshot();
       const before=STATE.groupProject; const m=blankPerson('manual'); STATE.people.push(m); const after=STATE.groupProject;
       const parsed=parseImportXls('<table><tr><td>firstname</td><td>Imported</td></tr></table><table></table><table></table>');
-      return {one,two,v3:snap.includes('"v":3') && snap.includes('Gamma'),manualStable:before===after,xlsNoProject:parsed.ok && !Object.prototype.hasOwnProperty.call(parsed.meta,'project')};
+      return {one,two,blankWarning,blankStillConflict,resolved,v3:snap.includes('"v":3') && snap.includes('Gamma'),manualStable:before===after,xlsNoProject:parsed.ok && !Object.prototype.hasOwnProperty.call(parsed.meta,'project')};
     });
     if (result.one.value!=='Alpha' || result.one.conflict || result.one.hasMeta) throw new Error(`agreed migration ${JSON.stringify(result)}`);
     if (result.two.value!=='' || !result.two.conflict || result.two.audit.join(',')!=='Alpha,Beta') throw new Error(`conflict migration ${JSON.stringify(result)}`);
+    if (!result.blankWarning || !result.blankStillConflict) throw new Error(`blank conflict warning ${JSON.stringify(result)}`);
+    if (result.resolved.conflict || result.resolved.warning || result.resolved.audit.join(',')!=='Alpha,Beta' || result.resolved.value!=='Resolved Project') throw new Error(`conflict resolution ${JSON.stringify(result)}`);
     if (!result.v3) throw new Error('v3 snapshot missing canonical project');
     if (!result.manualStable || !result.xlsNoProject) throw new Error(`import/manual boundary ${JSON.stringify(result)}`);
+  });
+  await check(`${label} group-only and empty backup recovery boundaries`, async () => {
+    await page.evaluate(() => localStorage.setItem(BACKUP_KEY, JSON.stringify({v:3,groupProject:'Only Group',people:[],assessment:{objectives:{},methods:null}})));
+    await page.reload({waitUntil:'load'});
+    const offered = await page.evaluate(() => !!RESTORE_OFFER && RESTORE_OFFER.groupProject==='Only Group' && !!document.querySelector('.warnbox'));
+    await page.evaluate(() => doRestoreBackup());
+    const restored = await page.evaluate(() => STATE.groupProject==='Only Group' && STATE.people.length===0);
+    await page.evaluate(() => localStorage.setItem(BACKUP_KEY, JSON.stringify({v:3,groupProject:'',people:[],assessment:{objectives:{},methods:null}})));
+    await page.reload({waitUntil:'load'});
+    const emptyOffered = await page.evaluate(() => !!RESTORE_OFFER);
+    if (!offered || !restored || emptyOffered) throw new Error(`backup boundaries offered=${offered} restored=${restored} empty=${emptyOffered}`);
   });
   await check(`${label} blank project title has no separator`, async () => {
     const result=await page.evaluate(()=>{ const p=blankPerson('manual'); p.meta.firstname='Ana';p.meta.lastname='Pop';STATE.people=[p];STATE.groupProject='';return reportTitle(p); });

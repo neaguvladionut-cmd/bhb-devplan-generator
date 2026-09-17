@@ -2,11 +2,13 @@ PASS file launch and group Project field
 PASS file setup manual action and participant-first order
 PASS file print identity, escaping and score invariants
 PASS file v2 agreed/conflict migration and v3 round-trip
+PASS file group-only and empty backup recovery boundaries
 PASS file blank project title has no separator
 PASS file stress and group chapter/person boundaries
 PASS http launch and group Project field
 PASS http setup manual action and participant-first order
 PASS http print identity, escaping and score invariants
 PASS http v2 agreed/conflict migration and v3 round-trip
+PASS http group-only and empty backup recovery boundaries
 PASS http blank project title has no separator
 PASS http stress and group chapter/person boundaries

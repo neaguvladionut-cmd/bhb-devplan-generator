@@ -1445,7 +1445,13 @@ function viewRoster(){
     : '<div class="empty"><img src="assets/illustrations/bhb-no-search-results.webp" alt="" style="width:150px;opacity:.9;display:block;margin:0 auto 10px" onerror="this.remove()"><b>'+t('rosterEmpty')+'</b><br>'+t('rosterEmptySub')+'</div>')+
   '</div>';
 }
-function setGroupProject(v){ STATE.groupProject=String(v==null?'':v); render(); }
+function setGroupProject(v){
+ STATE.groupProject=String(v==null?'':v);
+ // A deliberate non-empty group-level entry resolves a legacy conflict, but
+ // the migration audit remains intact for persistence and later review.
+ if(STATE.groupProject.trim() && STATE.migration && STATE.migration.conflict) STATE.migration.conflict=false;
+ render();
+}
 function addManualPerson(){
  var p = blankPerson('manual');
  STATE.people.push(p);
@@ -2135,7 +2141,7 @@ document.addEventListener('drop',function(e){
 /* crash recovery + close-tab guard (DoD 1) */
 try{
  var _b = localStorage.getItem(BACKUP_KEY);
- if(_b){ var _ob = JSON.parse(_b); if(_ob && _ob.people && _ob.people.length) RESTORE_OFFER = _ob; }
+ if(_b){ var _ob = JSON.parse(_b); if(_ob && ((_ob.people && _ob.people.length) || String(_ob.groupProject||'').trim())) RESTORE_OFFER = _ob; }
 }catch(e){}
 window.addEventListener('beforeunload',function(e){
  if(isDirty()){ e.preventDefault(); e.returnValue=''; }
