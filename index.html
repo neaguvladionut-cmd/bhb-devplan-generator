@@ -187,7 +187,8 @@ textarea{resize:vertical;min-height:70px}
 .pdoc ul.pbeh li .ctag{color:var(--muted-2);font-size:9.6px}
 .pdoc .cmtbox{border:1.3px dashed var(--line-2);border-radius:9px;padding:9px 11px;min-height:44px;font-size:11px;color:var(--ink-2);margin-top:4px;white-space:pre-wrap}
 .pdoc .pfoot{margin-top:16px;font-size:9.6px;color:var(--muted-2);display:flex;justify-content:space-between}
-.objillu{text-align:right;margin:-4px 0 6px}
+.objillu{text-align:right;margin:-4px 0 0}
+.pdoc .rcover .objillu{float:right;margin:-2px 0 0 16px;max-width:110px}
 .objillu img{width:110px;height:auto;opacity:.92;border-radius:8px}
 
 /* ---------- calendar page: month-grid Gantt, one row per method pick
@@ -1816,17 +1817,24 @@ function buildObjectivesPage(p,subset,opts){
  behHtml = '<div class="objectives-content">'+behHtml+'</div>';
  var methodSummary = appliedMethodsHtml(p,selected);
  var fullName = ((p.meta.firstname||'')+' '+(p.meta.lastname||'')).trim() || '—';
- var pageLabel = opts.continuation ? t('pageObjectives')+' · '+t('continuation') : t('pageObjectives');
- var score = opts.showScore===false ? '' : '<h4 class="rsec">'+t('scoreSection')+'</h4>'+(selected.length?scoreGraphSection(p.bank,selected,false):'<p style="font-size:11px;color:var(--muted)">—</p>');
- var notes = opts.showNotes===false ? '' : '<h4 class="rsec">'+t('commentsSection')+'</h4><div class="cmtbox">'+esc(p.notes||'—')+'</div>';
+ var chapter = opts.chapter || 'full';
+ var labels = {objectives:t('pageObjectives'),graph:t('scoreSection'),methods:t('appliedMethods'),notes:t('commentsSection')};
+ var pageLabel = labels[chapter] || t('pageObjectives');
+ if(opts.continuation) pageLabel += ' · '+t('continuation');
+ var content = '';
+ if(chapter==='objectives') content = '<h4 class="rsec">'+pageLabel+'</h4>'+behHtml;
+ if(chapter==='graph') content = '<h4 class="rsec">'+pageLabel+'</h4>'+(selected.length?scoreGraphSection(p.bank,selected,false):'<p style="font-size:11px;color:var(--muted)">—</p>');
+ if(chapter==='methods') content = appliedMethodsHtml(p,selected);
+ if(chapter==='notes') content = '<h4 class="rsec">'+pageLabel+'</h4><div class="cmtbox">'+esc(opts.notesText==null?(p.notes||'—'):opts.notesText)+'</div>';
+ if(chapter==='full') content = '<h4 class="rsec">'+t('pageObjectives')+'</h4>'+behHtml+'<h4 class="rsec">'+t('scoreSection')+'</h4>'+(selected.length?scoreGraphSection(p.bank,selected,false):'<p style="font-size:11px;color:var(--muted)">—</p>')+appliedMethodsHtml(p,selected)+'<h4 class="rsec">'+t('commentsSection')+'</h4><div class="cmtbox">'+esc(p.notes||'—')+'</div>';
  return '<div class="pdoc">'+
-  '<div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('planTitle')+' · '+pageLabel+'</div>'+
-   '<h2>'+esc(fullName)+'</h2>'+
-   '<div class="rmeta">'+esc(p.meta.position||'')+(p.meta.project?' · '+esc(p.meta.project):'')+' · '+dstr(p.planDate)+'</div>'+
-  '</div>'+
-  (opts.illustration===false?'':'<div class="objillu"><img src="assets/illustrations/bhb-competency-profiler-report-illustration.webp" alt=""></div>')+
-  '<h4 class="rsec">'+pageLabel+'</h4>'+behHtml+score+methodSummary+notes+
-  '<div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div>'+
+  '<div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('planTitle')+' · '+pageLabel+'</div>'+ 
+   '<h2>'+esc(fullName)+'</h2>'+ 
+   '<div class="rmeta">'+esc(p.meta.position||'')+(p.meta.project?' · '+esc(p.meta.project):'')+' · '+dstr(p.planDate)+'</div>'+ 
+   (opts.illustration===false?'':'<div class="objillu"><img src="assets/illustrations/bhb-competency-profiler-report-illustration.webp" alt=""></div>')+
+  '</div>'+ 
+  content+
+  '<div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div>'+ 
  '</div>';
 }
 function appliedMethodsHtml(p,selected){
@@ -1943,27 +1951,19 @@ function buildCalendarPage(p){
    on-screen preview, which stays a wide landscape card as before. */
 function personPagesHtml(p,forPrint){
  var rot = (forPrint && STATE.pdfCalRotate!==false) ? ' rot' : '';
- var longNotes = forPrint && ((p.notes||'').split('\n').length>12 || String(p.notes||'').length>900);
  var portrait = '';
- if(!forPrint || (p.sel||[]).length<=3){
-  portrait = '<div class="page portrait">'+buildObjectivesPage(p,null,{showNotes:!longNotes})+'</div>';
- } else {
-  var chunks=[];
-  chunks.push((p.sel||[]).slice(0,3));
-  for(var i=3;i<(p.sel||[]).length;i+=4) chunks.push((p.sel||[]).slice(i,i+4));
-  portrait = chunks.map(function(group,idx){
-   var last=idx===chunks.length-1;
-   return '<div class="page portrait">'+buildObjectivesPage(p,group,{continuation:idx>0,showScore:idx===0,showNotes:last&&!longNotes,illustration:idx===0})+'</div>';
-  }).join('');
+ function pagesFor(items,size,chapter,illustration){
+  var groups=[]; for(var i=0;i<Math.max(1,items.length);i+=size) groups.push(items.slice(i,i+size));
+  return groups.map(function(group,idx){ return '<div class="page portrait">'+buildObjectivesPage(p,group,{chapter:chapter,continuation:idx>0,illustration:illustration&&idx===0})+'</div>'; }).join('');
  }
- if(longNotes){
-  var noteLines=String(p.notes||'').split('\n'), notePages=[];
-  for(var n=0;n<noteLines.length;n+=12){
-   var chunk=noteLines.slice(n,n+12).join('\n');
-   var noteName=((p.meta.firstname||'')+' '+(p.meta.lastname||'')).trim() || '—';
-   notePages.push('<div class="page portrait"><div class="pdoc"><div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('planTitle')+' · '+t('commentsSection')+' · '+t('continuation')+'</div><h2>'+esc(noteName)+'</h2><div class="rmeta">'+esc(p.meta.position||'')+(p.meta.project?' · '+esc(p.meta.project):'')+' · '+dstr(p.planDate)+'</div></div><h4 class="rsec">'+t('commentsSection')+'</h4><div class="cmtbox">'+esc(chunk)+'</div><div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div></div></div>');
-  }
-  portrait += notePages.join('');
+ var selected=p.sel||[];
+ portrait += pagesFor(selected,6,'graph',false);
+ portrait = pagesFor(selected,6,'objectives',true) + portrait;
+ var methodComps=selected.filter(function(c){return p.methods&&p.methods[c]&&p.methods[c].picks&&p.methods[c].picks.length;});
+ if(methodComps.length) portrait += pagesFor(methodComps,4,'methods',false);
+ if(String(p.notes||'')){
+  var noteLines=String(p.notes).split('\n');
+  portrait += pagesFor(noteLines,12,'notes',false);
  }
  return portrait+
         '<div class="page landscape'+rot+'"><div class="rotwrap">'+buildCalendarPage(p)+'</div></div>';
