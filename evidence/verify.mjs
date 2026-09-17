@@ -55,7 +55,7 @@ async function exercise(url, label) {
     if (!result.summary.includes('14 zile')) throw new Error('duration missing');
     if (!result.summary.includes('Metodă "<script> & linie')) throw new Error('who/hostile text missing');
     if (result.pages !== 4 || result.headers !== 4) throw new Error(`page contract ${result.pages}/${result.headers}`);
-    if (!result.chapters[0].includes('Obiective') || !result.chapters[1].includes('Scor') || !result.chapters[2].includes('Metode') || !result.chapters[3].includes('Calendar')) throw new Error(`chapter order ${result.chapters}`);
+    if (!result.chapters[0].includes('Scor') || !result.chapters[1].includes('Obiective') || !result.chapters[2].includes('Metode') || !result.chapters[3].includes('Calendar')) throw new Error(`chapter order ${result.chapters}`);
     if (!(result.values.includes('3.3 / 5') || result.values.includes('3,3 / 5')) || !result.values.includes('neevaluată')) throw new Error(`score invariants ${result.values}`);
   });
   await page.emulateMedia({media: 'print'});
@@ -104,8 +104,9 @@ async function stress(url, label, count = 10) {
   const expectedPages = Math.ceil(count / 6) + Math.ceil(count / 6) + Math.ceil(count / 4) + 3 + 1;
   if (result.pages !== expectedPages || result.objectives !== count || result.methodGroups !== count) throw new Error(`stress DOM ${JSON.stringify(result)}`);
   if (!result.enHeading.includes('Applied methods') || !result.enScore.includes('Competency scores')) throw new Error(`EN labels ${JSON.stringify(result)}`);
-  const order = result.chapterOrder.map(x => x.includes('Objectives') ? 1 : x.includes('Competency scores') ? 2 : x.includes('Applied methods') ? 3 : x.includes('Comments') ? 4 : x.includes('Calendar') ? 5 : 0);
+  const order = result.chapterOrder.map(x => x.includes('Competency scores') ? 1 : x.includes('Objectives') ? 2 : x.includes('Applied methods') ? 3 : x.includes('Comments') ? 4 : x.includes('Calendar') ? 5 : 0);
   if (order.some((n, i) => i && n < order[i - 1])) throw new Error(`chapter order ${result.chapterOrder}`);
+  if (!result.chapterOrder[0].includes('Competency scores') || !result.chapterOrder.find(x => x.includes('Objectives')) || order.indexOf(2) < order.indexOf(1)) throw new Error(`graph must precede objectives ${result.chapterOrder}`);
   await page.pdf({path: path.join(root, 'evidence', `${label}-stress.pdf`), format: 'A4', printBackground: true});
   await page.screenshot({path: path.join(root, 'evidence', `${label}-stress.png`), fullPage: true});
   checks.push(`PASS ${label} exact 10/30 stress DOM and EN labels`);

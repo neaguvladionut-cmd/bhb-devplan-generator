@@ -1957,8 +1957,8 @@ function personPagesHtml(p,forPrint){
   return groups.map(function(group,idx){ return '<div class="page portrait">'+buildObjectivesPage(p,group,{chapter:chapter,continuation:idx>0,illustration:illustration&&idx===0})+'</div>'; }).join('');
  }
  var selected=p.sel||[];
- portrait += pagesFor(selected,6,'graph',false);
- portrait = pagesFor(selected,6,'objectives',true) + portrait;
+ portrait = pagesFor(selected,6,'graph',false);
+ portrait += pagesFor(selected,6,'objectives',true);
  var methodComps=selected.filter(function(c){return p.methods&&p.methods[c]&&p.methods[c].picks&&p.methods[c].picks.length;});
  if(methodComps.length) portrait += pagesFor(methodComps,4,'methods',false);
  if(String(p.notes||'')){
