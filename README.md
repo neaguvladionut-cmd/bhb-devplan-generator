@@ -12,6 +12,7 @@ from the platform checkout.
 
 - Baseline: `deb0612d270678c3a31f391f03dd45ac813403b0f`
 - Packet: `DEVPLAN-FB1` (print and setup feedback, 2026-09-16)
+- Reiteration: 2 / D259 (participant navigation, detail order, group-wide Project, 2026-09-17)
 - Canonical source/deploy file: repository-root `index.html`
 - GitHub Pages: `main` branch, repository root
 

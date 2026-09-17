@@ -382,6 +382,7 @@ var LANG = 'ro';
    A4 PORTRAIT sheet (default, keeps the whole PDF one page size) vs. upright
    portrait. Session-level, not per-person — one PDF convention per project. */
 var STATE = { people: [], activeId: null, view: 'setup', projectBank: null, bankReviewed: false, pendingImportNames: [],
+ groupProject: '', migration: { legacyProjectAudit: [], conflict: false },
  pdfCalRotate: true, assessment: { objectives:{}, methods:null } };
 var UID = 1;
 function nid(p){ return (p||'id') + (UID++); }
@@ -394,23 +395,23 @@ function nid(p){ return (p||'id') + (UID++); }
    "standalone HTML can't persist" claim was wrong), offered back with a
    restore banner when the app reopens onto an empty session. ---------- */
 var LAST_SAVED = '';
-function snapshot(){ try{ return JSON.stringify({p:STATE.people,a:STATE.assessment}); }catch(e){ return ''; } }
-function isDirty(){ return STATE.people.length>0 && snapshot()!==LAST_SAVED; }
+function snapshot(){ try{ return JSON.stringify({v:3,g:STATE.groupProject||'',m:STATE.migration||{},p:STATE.people,a:STATE.assessment}); }catch(e){ return ''; } }
+function isDirty(){ return (STATE.people.length>0 || String(STATE.groupProject||'')) && snapshot()!==LAST_SAVED; }
 var BACKUP_KEY = 'bhb-devplan-autobackup';
 var _lastBackup = '';
 var RESTORE_OFFER = null;
 function autoBackup(){
- if(!STATE.people.length) return;
+ if(!STATE.people.length && !String(STATE.groupProject||'')) return;
  var s = snapshot(); if(s===_lastBackup) return;
  try{
-  localStorage.setItem(BACKUP_KEY, JSON.stringify({t:new Date().toISOString(), lang:LANG, people:STATE.people, assessment:STATE.assessment}));
+  localStorage.setItem(BACKUP_KEY, JSON.stringify({v:3,t:new Date().toISOString(), lang:LANG, groupProject:STATE.groupProject||'', migration:STATE.migration||{}, people:STATE.people, assessment:STATE.assessment, pdfCalRotate:STATE.pdfCalRotate!==false}));
   _lastBackup = s;
  }catch(e){}
 }
 function doRestoreBackup(){
  var ob = RESTORE_OFFER; RESTORE_OFFER = null;
  if(!ob) return;
- STATE.people = ob.people; STATE.assessment = ob.assessment || {objectives:{},methods:null};
+ applySessionPayload(ob, true);
  if(ob.lang) LANG = ob.lang;
  STATE.people.forEach(recomputeAverages); // 2026-08-03 backfill, see loadSessionFile
  rebuildProjectBank(); STATE.bankReviewed = true; STATE.view = 'roster';
@@ -419,12 +420,54 @@ function doRestoreBackup(){
  toast('<b>'+t('sessionLoaded')+'</b>','ok');
 }
 function restoreBanner(){
- if(!RESTORE_OFFER || STATE.people.length) return '';
+ if(!RESTORE_OFFER || STATE.people.length || String(STATE.groupProject||'')) return '';
  var when = String(RESTORE_OFFER.t||'').slice(0,16).replace('T',' ');
  return '<div class="warnbox" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
   '<span style="flex:1">'+t('restoreFound')+(when?' ('+when+')':'')+'</span>'+
   '<button class="btn btn-green btn-sm" onclick="doRestoreBackup()">'+t('restore')+'</button>'+
   '<button class="btn btn-ghost btn-sm" onclick="RESTORE_OFFER=null;render()">'+t('discard')+'</button></div>';
+}
+
+/* v3 group Project contract (D259). Legacy participant values are read only
+   during migration; the live model has one canonical group value. */
+function migrateLegacyProject(people, obj){
+ var audit = obj && obj.migration && Array.isArray(obj.migration.legacyProjectAudit) ? obj.migration.legacyProjectAudit.slice() : [];
+ var values = [];
+ (people||[]).forEach(function(p,idx){
+  var raw = p && p.meta ? String(p.meta.project||'') : '';
+  var trimmed = raw.trim();
+  if(trimmed) values.push({person:personLabel(p)||('Person '+(idx+1)),value:trimmed});
+ });
+ var distinct = [];
+ values.forEach(function(v){ if(!distinct.some(function(x){return x.value===v.value;})) distinct.push(v); });
+ var canonical = obj && obj.v>=3 && obj.groupProject!=null ? String(obj.groupProject).trim() : '';
+ var conflict = false;
+ if(obj && obj.v>=3){
+  conflict = !!(obj.migration && obj.migration.conflict);
+ } else if(distinct.length===1){
+  canonical = distinct[0].value;
+ } else if(distinct.length>1){
+  canonical = '';
+  conflict = true;
+  audit = values.map(function(v){return {person:v.person,value:v.value};});
+ }
+ if(!conflict && !audit.length && obj && obj.migration && obj.migration.conflict) conflict=true;
+ (people||[]).forEach(function(p){ if(p && p.meta && Object.prototype.hasOwnProperty.call(p.meta,'project')) delete p.meta.project; });
+ return {groupProject:canonical, migration:{legacyProjectAudit:audit,conflict:conflict}};
+}
+function applySessionPayload(obj, restoring){
+ obj=obj||{};
+ var people=Array.isArray(obj.people)?obj.people:[];
+ var mig=migrateLegacyProject(people,obj);
+ STATE.people=people;
+ STATE.groupProject=mig.groupProject||'';
+ STATE.migration=mig.migration;
+ STATE.assessment=obj.assessment||{objectives:{},methods:null};
+ STATE.pdfCalRotate = (obj.pdfCalRotate===undefined) ? true : !!obj.pdfCalRotate;
+ STATE.people.forEach(recomputeAverages);
+ STATE.activeId=null; STATE.view='roster';
+ rebuildProjectBank(); STATE.bankReviewed=true;
+ if(!restoring) RESTORE_OFFER=null;
 }
 
 /* ---------- two-step inline confirm (DoD 5: replaces native confirm();
@@ -465,6 +508,7 @@ var STR = {
  confirmBank:{ro:'Confirmă și continuă',en:'Confirm and continue'},
  notAssessed:{ro:'neevaluată',en:'not assessed'},
  backToRoster:{ro:'← Grup',en:'← Group'},
+ backToGroup:{ro:'Înapoi la grup',en:'Back to group'},
  stepComp:{ro:'Competențe',en:'Competencies'},
  stepBeh:{ro:'Obiective',en:'Objectives'},
  stepMethods:{ro:'Metode',en:'Methods'},
@@ -505,8 +549,8 @@ var STR = {
  print:{ro:'Printează / PDF',en:'Print / PDF'},
  back:{ro:'← Înapoi',en:'← Back'},
  next:{ro:'Continuă →',en:'Continue →'},
- saveClose:{ro:'Salvează & închide',en:'Save & close'},
  personName:{ro:'Nume prenume',en:'Full name'},
+ participantDetails:{ro:'Detalii participant',en:'Participant details'},
  personPosition:{ro:'Poziție',en:'Position'},
  evalDate:{ro:'Data evaluării',en:'Evaluation date'},
  planTitle:{ro:'PLAN INDIVIDUAL DE DEZVOLTARE',en:'PLAN INDIVIDUAL DE DEZVOLTARE'},
@@ -520,6 +564,8 @@ var STR = {
  sessionLoaded:{ro:'Sesiune încărcată',en:'Session loaded'},
  sessionLoadFail:{ro:'Fișierul nu pare o sesiune validă.',en:'File doesn\'t look like a valid session.'},
  project:{ro:'Proiect',en:'Project'},
+ projectHint:{ro:'Se aplică întregului grup și apare în titlul fiecărui raport.',en:'Applies to the whole group and appears in each report title.'},
+ projectConflict:{ro:'Au fost găsite proiecte diferite în datele vechi. Proiectul grupului este gol până alegi o singură valoare. Valorile vechi sunt păstrate pentru audit.',en:'Different projects were found in the legacy data. The group project is blank until you choose one value. Legacy values are preserved for audit.'},
  setupTitle:{ro:'Configurare evaluare',en:'Assessment setup'},
  setupSub:{ro:'Competențe, comportamente, texte de obiectiv și catalogul de metode — se aplică întregului grup. Importă o fișă de evaluare completată, sau completează manual pe măsură ce adaugi persoane.',en:'Competencies, behaviors, objective texts, and the methods catalog — applies to the whole group. Import a filled evaluation sheet, or fill in manually as you add people.'},
  setupManualTitle:{ro:'Adaugă participant fără import',en:'Add a participant without an import'},
@@ -1381,9 +1427,12 @@ function viewRoster(){
     '<button class="btn '+(ARMED['rm'+p.id]?'btn-red':'btn-ghost')+' btn-sm" onclick="removePerson(\''+p.id+'\')">'+(ARMED['rm'+p.id]?t('armSure'):ic('trash'))+'</button>'+
    '</td></tr>';
  }).join('');
+ var projectCard = '<div class="card" style="margin-bottom:14px"><div style="display:flex;gap:14px;align-items:end;flex-wrap:wrap">'+
+  '<div style="flex:1;min-width:260px"><label class="lb">'+t('project')+'</label><input id="groupProject" type="text" value="'+esc(STATE.groupProject||'')+'" onchange="setGroupProject(this.value)"><div class="note">'+t('projectHint')+'</div></div>'+
+  '</div>'+(STATE.migration&&STATE.migration.conflict?'<div class="warnbox" style="margin-top:12px">'+t('projectConflict')+'</div>':'')+'</div>';
  return '<div class="pagehead"><div><h1>'+t('rosterTitle')+'</h1><div class="sub">'+t('rosterSub')+'</div></div>'+
   (STATE.people.length?'<div class="ph-actions" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+rotToggleHtml()+'<button class="btn btn-green btn-sm" onclick="printAllGroup()">'+ic('print')+' '+t('printAll')+'</button></div>':'')+
-  '</div>'+
+  '</div>'+projectCard+
   '<div class="card">'+
    '<div class="dropzone" id="dz" onclick="document.getElementById(\'fileImport\').click()">'+
     '<b>'+t('dropTitle')+'</b>'+t('dropSub')+
@@ -1396,6 +1445,7 @@ function viewRoster(){
     : '<div class="empty"><img src="assets/illustrations/bhb-no-search-results.webp" alt="" style="width:150px;opacity:.9;display:block;margin:0 auto 10px" onerror="this.remove()"><b>'+t('rosterEmpty')+'</b><br>'+t('rosterEmptySub')+'</div>')+
   '</div>';
 }
+function setGroupProject(v){ STATE.groupProject=String(v==null?'':v); render(); }
 function addManualPerson(){
  var p = blankPerson('manual');
  STATE.people.push(p);
@@ -1454,7 +1504,7 @@ function viewBoard(){
   '<div class="stepnav">'+
    (step>0?'<button class="btn btn-ghost" onclick="activePerson().step--;render()">'+t('back')+'</button>':'')+
    '<span class="spacer"></span>'+
-   '<button class="btn btn-yellow btn-sm" onclick="STATE.view=\'roster\';render()">'+t('saveClose')+'</button>'+
+   '<button class="btn btn-yellow btn-sm" onclick="STATE.view=\'roster\';render()">'+t('backToGroup')+'</button>'+
    (step<4?'<button class="btn btn-aqua" onclick="advanceStep(activePerson())">'+t('next')+'</button>':'')+
   '</div>';
 }
@@ -1488,10 +1538,8 @@ function boardComp(p){
   '</div>' : '';
  var graph = bank.length ? '<div class="card"><h3>'+t('scoreGraphTitle')+'</h3><div class="sub" style="margin:2px 0 10px">'+t('scoreGraphSub')+'</div><div class="sgwrap">'+scoreGraphSection(bank,null,true)+'</div></div>' : '';
  var behEditor = (manual && bank.length) ? manualBehaviorsEditor(p) : '';
- return '<div class="card"><h3>'+t('stepComp')+'</h3><div class="sub" style="margin:2px 0 10px">'+(manual&&!bank.length?t('compHintManual'):t('compHint'))+'</div>'+
-  (bank.length?'<div class="grid">'+cards+'</div>':'<div class="empty">'+t('compHintManual')+'</div>')+
-  manualAdd+
-  personMetaFields(p)+
+ return '<div class="card"><h3>'+t('participantDetails')+'</h3>'+personMetaFields(p)+
+  (bank.length?'<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px"><h4 style="margin:0 0 4px">'+t('stepComp')+'</h4><div class="sub" style="margin:0 0 10px">'+(manual&&!bank.length?t('compHintManual'):t('compHint'))+'</div><div class="grid">'+cards+'</div>'+manualAdd+'</div>':'<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px"><h4 style="margin:0 0 4px">'+t('stepComp')+'</h4><div class="empty">'+t('compHintManual')+'</div>'+manualAdd+'</div>')+
   '</div>'+
   behEditor+
   graph;
@@ -1576,7 +1624,6 @@ function personMetaFields(p){
   '<div><label class="lb">'+t('personName')+'</label><input type="text" value="'+esc((p.meta.firstname+' '+p.meta.lastname).trim())+'" onchange="setPersonName(activePerson(),this.value)"></div>'+
   '<div><label class="lb">'+t('personPosition')+'</label><input type="text" value="'+esc(p.meta.position)+'" onchange="activePerson().meta.position=this.value"></div>'+
   '<div><label class="lb">'+t('evalDate')+'</label><input type="date" value="'+esc(p.planDate)+'" onchange="activePerson().planDate=this.value"></div>'+
-  '<div><label class="lb">'+t('project')+'</label><input type="text" value="'+esc(p.meta.project||'')+'" onchange="activePerson().meta.project=this.value"></div>'+
  '</div>';
 }
 function setPersonName(p,v){
@@ -1816,7 +1863,7 @@ function buildObjectivesPage(p,subset,opts){
  }).join('') || '<p style="font-size:11px;color:var(--muted)">—</p>';
  behHtml = '<div class="objectives-content">'+behHtml+'</div>';
  var methodSummary = appliedMethodsHtml(p,selected);
- var fullName = ((p.meta.firstname||'')+' '+(p.meta.lastname||'')).trim() || '—';
+ var fullName = reportTitle(p);
  var chapter = opts.chapter || 'full';
  var labels = {objectives:t('pageObjectives'),graph:t('scoreSection'),methods:t('appliedMethods'),notes:t('commentsSection')};
  var pageLabel = labels[chapter] || t('pageObjectives');
@@ -1828,14 +1875,19 @@ function buildObjectivesPage(p,subset,opts){
  if(chapter==='notes') content = '<h4 class="rsec">'+pageLabel+'</h4><div class="cmtbox">'+esc(opts.notesText==null?(p.notes||'—'):opts.notesText)+'</div>';
  if(chapter==='full') content = '<h4 class="rsec">'+t('pageObjectives')+'</h4>'+behHtml+'<h4 class="rsec">'+t('scoreSection')+'</h4>'+(selected.length?scoreGraphSection(p.bank,selected,false):'<p style="font-size:11px;color:var(--muted)">—</p>')+appliedMethodsHtml(p,selected)+'<h4 class="rsec">'+t('commentsSection')+'</h4><div class="cmtbox">'+esc(p.notes||'—')+'</div>';
  return '<div class="pdoc">'+
-  '<div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('planTitle')+' · '+pageLabel+'</div>'+ 
-   '<h2>'+esc(fullName)+'</h2>'+ 
-   '<div class="rmeta">'+esc(p.meta.position||'')+(p.meta.project?' · '+esc(p.meta.project):'')+' · '+dstr(p.planDate)+'</div>'+ 
+  '<div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('planTitle')+' · '+pageLabel+'</div>'+
+   '<h2>'+esc(fullName)+'</h2>'+
+   '<div class="rmeta">'+esc(p.meta.position||'')+' · '+dstr(p.planDate)+'</div>'+
    (opts.illustration===false?'':'<div class="objillu"><img src="assets/illustrations/bhb-competency-profiler-report-illustration.webp" alt=""></div>')+
-  '</div>'+ 
+  '</div>'+
   content+
-  '<div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div>'+ 
+  '<div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div>'+
  '</div>';
+}
+function reportTitle(p){
+ var name=((p.meta.firstname||'')+' '+(p.meta.lastname||'')).trim() || '—';
+ var project=String(STATE.groupProject||'').trim();
+ return project ? name+' · '+project : name;
 }
 function appliedMethodsHtml(p,selected){
  var groups=(selected||p.sel||[]).map(function(comp){
@@ -1931,7 +1983,7 @@ function fitCalendarLabels(root){
 }
 function buildCalendarPage(p){
  var groups = p.sel.filter(function(c){ return p.methods[c] && p.methods[c].picks.length; });
- var fullName = ((p.meta.firstname||'')+' '+(p.meta.lastname||'')).trim() || '—';
+ var fullName = reportTitle(p);
  if(!groups.length){
   return '<div class="pdoc caldoc"><div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('pageCalendar')+'</div><h2>'+esc(fullName)+'</h2></div>'+
    '<p style="font-size:11px;color:var(--muted)">—</p></div>';
@@ -1939,7 +1991,7 @@ function buildCalendarPage(p){
  return '<div class="pdoc caldoc">'+
   '<div class="rcover"><div class="rbar"></div><div class="reyebrow">'+t('pageCalendar')+'</div>'+
    '<h2>'+esc(fullName)+'</h2>'+
-   '<div class="rmeta">'+esc(p.meta.position||'')+(p.meta.project?' · '+esc(p.meta.project):'')+' · '+dstr(p.planDate)+'</div>'+
+   '<div class="rmeta">'+esc(p.meta.position||'')+' · '+dstr(p.planDate)+'</div>'+
   '</div>'+
   '<div class="calwrap">'+calendarChartHtml(p,groups)+'</div>'+
   '<div class="pfoot"><span>Business Health Bar</span><span>'+t('printedOn')+' '+todayStr()+'</span></div>'+
@@ -2019,7 +2071,7 @@ function saveSessionFile(){
  // includes the assessment definition (objectives + methods catalog,
  // brief §Assessment setup page rev.3) alongside the group, so a session
  // reopened later has both the people AND the setup-page config.
- var payload = { v:2, lang:LANG, people:STATE.people, assessment:STATE.assessment, pdfCalRotate:STATE.pdfCalRotate!==false };
+ var payload = { v:3, lang:LANG, groupProject:STATE.groupProject||'', migration:STATE.migration||{legacyProjectAudit:[],conflict:false}, people:STATE.people, assessment:STATE.assessment, pdfCalRotate:STATE.pdfCalRotate!==false };
  downloadFile('plan-dezvoltare-sesiune-'+todayISO()+'.json', JSON.stringify(payload,null,2), 'application/json');
  LAST_SAVED = snapshot();
  toast('<b>'+t('sessionSaved')+'</b>','ok');
@@ -2032,18 +2084,9 @@ function loadSessionFile(input){
  r.onload=function(){
   try{
    var obj=JSON.parse(String(r.result));
-   if(!obj.people) throw 0;
-   STATE.people = obj.people;
-   STATE.activeId=null; STATE.view='roster';
    if(obj.lang) LANG=obj.lang;
-   STATE.pdfCalRotate = (obj.pdfCalRotate===undefined) ? true : !!obj.pdfCalRotate;
-   // sessions saved before the 2026-08-03 fix carry manual people whose
-   // competency averages were never derived — backfill on open.
-   STATE.people.forEach(recomputeAverages);
-   // v1 sessions (pre-rev.3) have no assessment block — start with a fresh
-   // one (empty objectives, default methods catalog) rather than failing.
-   STATE.assessment = obj.assessment || {objectives:{},methods:null};
-   rebuildProjectBank(); STATE.bankReviewed=true;
+   if(!obj.people) throw 0;
+   applySessionPayload(obj, false);
    LAST_SAVED = snapshot(); RESTORE_OFFER = null;
    render();
    toast('<b>'+t('sessionLoaded')+'</b>','ok');
@@ -2053,12 +2096,12 @@ function loadSessionFile(input){
 }
 function newSession(){
  // two-step confirm (DoD 5) — first click arms the header button, second resets.
- if(!STATE.people.length){ resetSession(); return; }
+ if(!STATE.people.length && !String(STATE.groupProject||'')){ resetSession(); return; }
  armDo('new', resetSession);
 }
 function resetSession(){
  STATE = { people: [], activeId: null, view: 'setup', projectBank:null, bankReviewed:false, pendingImportNames:[],
-  pdfCalRotate: true, assessment: { objectives:{}, methods:null } };
+  groupProject:'', migration:{legacyProjectAudit:[],conflict:false}, pdfCalRotate: true, assessment: { objectives:{}, methods:null } };
  LAST_SAVED=''; _lastBackup=''; RESTORE_OFFER=null;
  SETUP_SUMMARY=null; SETUP_OPEN={}; SETUP_ALL={}; METHOD_EDIT=null; // transient setup-page UI state
  try{ localStorage.removeItem(BACKUP_KEY); }catch(e){}

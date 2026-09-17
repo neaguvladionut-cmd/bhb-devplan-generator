@@ -1,12 +1,12 @@
-PASS file launch
-PASS file setup manual action
-PASS file escaped methods and score graph
-PASS file exact 10/30 stress DOM and EN labels
-PASS http launch
-PASS http setup manual action
-PASS http escaped methods and score graph
-PASS http exact 10/30 stress DOM and EN labels
-PASS file-adversarial exact 10/30 stress DOM and EN labels
-PASS http-adversarial exact 10/30 stress DOM and EN labels
-PASS file multi-person group boundaries
-PASS http multi-person group boundaries
+PASS file launch and group Project field
+PASS file setup manual action and participant-first order
+PASS file print identity, escaping and score invariants
+PASS file v2 agreed/conflict migration and v3 round-trip
+PASS file blank project title has no separator
+PASS file stress and group chapter/person boundaries
+PASS http launch and group Project field
+PASS http setup manual action and participant-first order
+PASS http print identity, escaping and score invariants
+PASS http v2 agreed/conflict migration and v3 round-trip
+PASS http blank project title has no separator
+PASS http stress and group chapter/person boundaries
