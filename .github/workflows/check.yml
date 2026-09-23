@@ -1,0 +1,55 @@
+name: check
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Render root entrypoint
+        run: |
+          node <<'JS'
+          const { chromium } = require('playwright');
+          const fs = require('node:fs');
+          const http = require('node:http');
+          const path = require('node:path');
+          const root = process.cwd();
+          (async () => {
+            const server = http.createServer((req, res) => {
+              const file = path.resolve(root, `.${req.url === '/' ? '/index.html' : req.url}`);
+              if (!file.startsWith(root)) return res.writeHead(403).end();
+              try { res.end(fs.readFileSync(file)); } catch { res.writeHead(404).end(); }
+            });
+            await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+            const browser = await chromium.launch();
+            const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+            const errors = [], missing = [];
+            page.on('pageerror', error => errors.push(String(error)));
+            page.on('response', response => { if (response.status() >= 400) missing.push(response.url()); });
+            await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: 'load' });
+            await page.screenshot({ path: 'verification-render.png', fullPage: true });
+            await browser.close();
+            server.close();
+            if (errors.length || missing.length) {
+              console.error({ errors, missing });
+              process.exit(1);
+            }
+          })().catch(error => { console.error(error); process.exit(1); });
+          JS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: render
+          path: verification-render.png
+          if-no-files-found: ignore
