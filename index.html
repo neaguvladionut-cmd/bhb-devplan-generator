@@ -292,8 +292,9 @@ textarea{resize:vertical;min-height:70px}
 .mtag{font-size:10px;background:var(--tint-aqua);color:var(--aqua-dd);border-radius:20px;padding:2px 9px;white-space:nowrap}
 .medit{border:1.5px solid var(--aqua);border-radius:11px;padding:11px 13px;margin:8px 0;background:#f0fbfd}
 
-/* Two pages per person, real portrait/landscape alternation (brief §5,
-   rev.3) via CSS Paged Media named pages — supported in Chromium's print/
+/* Portrait content plus one calendar sheet per person, with the portrait
+   content allowed to flow across as many sheets as it needs. The calendar
+   uses the CSS Paged Media geometry below — supported in Chromium's print/
    PDF engine (which this project already assumes for "print-to-PDF from
    browser"; other engines may ignore the named @page and print everything
    portrait — flag to PO if the team ever prints from Firefox/Safari).
@@ -1831,11 +1832,10 @@ function boardFinal(p){
 }
 
 /* =======================================================================
-   Print document — TWO PAGES per person (brief §5, rev.3, supersedes the
-   single-page order agreed earlier the same day 2026-07-13): page 1
-   portrait = Objectives (no scores shown) → score graph → notes; page 2
-   landscape = Calendar alone, month-grid, one row per method pick. Plan
-   output stays RO regardless of UI language (approved DoD point 6/7).
+   Print document — portrait content flows naturally and the calendar stays
+   on its own rotated A4 sheet. The print copy mirrors the combined preview:
+   graph, objectives, methods and comments continue only when the content
+   exceeds a sheet. Plan output stays RO/EN with the active UI language.
    ======================================================================= */
 var MONTH_LABELS = {
  ro:['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'],
@@ -2009,20 +2009,7 @@ function buildCalendarPage(p){
    on-screen preview, which stays a wide landscape card as before. */
 function personPagesHtml(p,forPrint){
  var rot = (forPrint && STATE.pdfCalRotate!==false) ? ' rot' : '';
- var portrait = '';
- function pagesFor(items,size,chapter,illustration){
-  var groups=[]; for(var i=0;i<Math.max(1,items.length);i+=size) groups.push(items.slice(i,i+size));
-  return groups.map(function(group,idx){ return '<div class="page portrait">'+buildObjectivesPage(p,group,{chapter:chapter,continuation:idx>0,illustration:illustration&&idx===0})+'</div>'; }).join('');
- }
- var selected=p.sel||[];
- portrait = pagesFor(selected,6,'graph',false);
- portrait += pagesFor(selected,6,'objectives',true);
- var methodComps=selected.filter(function(c){return p.methods&&p.methods[c]&&p.methods[c].picks&&p.methods[c].picks.length;});
- if(methodComps.length) portrait += pagesFor(methodComps,4,'methods',false);
- if(String(p.notes||'')){
-  var noteLines=String(p.notes).split('\n');
-  portrait += pagesFor(noteLines,12,'notes',false);
- }
+ var portrait = '<div class="page portrait">'+buildObjectivesPage(p)+'</div>';
  return portrait+
         '<div class="page landscape'+rot+'"><div class="rotwrap">'+buildCalendarPage(p)+'</div></div>';
 }

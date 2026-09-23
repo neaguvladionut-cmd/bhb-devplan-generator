@@ -72,7 +72,7 @@ async function exercise(url, label) {
     if (!result.summary.includes('Metodă "<script> & linie')) throw new Error('hostile text missing');
     if (!result.values.includes('3.3 / 5') && !result.values.includes('3,3 / 5')) throw new Error('score changed');
     if (!result.values.includes('neevaluată')) throw new Error('not-assessed state changed');
-    if (result.pages !== 4 || result.headers.some(x => x !== 'Ana Pop · Project X')) throw new Error(`page identity ${JSON.stringify(result)}`);
+    if (result.pages !== 2 || result.headers.some(x => x !== 'Ana Pop · Project X')) throw new Error(`page identity ${JSON.stringify(result)}`);
   });
   await page.emulateMedia({media: 'print'});
   await page.pdf({path: path.join(root, 'evidence', `${label}.pdf`), format: 'A4', printBackground: true});
@@ -139,7 +139,7 @@ async function stressAndGroup(url, label) {
       document.getElementById('printArea').innerHTML=htmlGroup; document.getElementById('printArea').style.display='block';
       return {onePages:(htmlOne.match(/class="page/g)||[]).length,groupPages:(htmlGroup.match(/class="page/g)||[]).length,text:document.getElementById('printArea').textContent,headers:[...document.querySelectorAll('#printArea h2')].map(x=>x.textContent)};
     });
-    if(result.onePages<6 || result.groupPages!==result.onePages*2) throw new Error(`stress pages ${JSON.stringify(result)}`);
+    if(result.onePages!==2 || result.groupPages!==result.onePages*2) throw new Error(`stress page containers ${JSON.stringify(result)}`);
     if(!result.headers.every(x=>x.endsWith(' · Stress Project'))) throw new Error('group project missing on continuation headers');
     if(result.text.indexOf('Primul Participant')>result.text.indexOf('Al doilea Participant')) throw new Error('person boundary order changed');
   });
