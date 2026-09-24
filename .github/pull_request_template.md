@@ -1,26 +1,31 @@
-Closes #<!-- the issue whose DoD this PR fulfils — required -->
+<!-- AGENTS.md §3 (D282): this PR is the record of what was done, by whom, and on whose acceptance. -->
 
-## What changed
+## What and why
 
-## DoD
-<!-- Copy the numbered DoD from the linked issue verbatim; one box per point. -->
-- [ ] 1.
+Closes #
+<!-- or: No issue: <one-line reason> -->
 
-## Experience Pass — charter §8 (a seat that did not build it)
-- [ ] Declares the shape of the job, in an honest pattern
-- [ ] Every action sits in the step that owns its question
-- [ ] Every step subtitled; every forward control names its destination
-- [ ] Every judgement step ships a defensible default with a stated reason
-- [ ] Depth folded behind disclosure
-- [ ] No internal vocabulary, leaked ID or decision code — RO and EN
-- [ ] Every empty state designed
-- [ ] Automatic and manual routes are siblings, as equals
-- [ ] No negative assertion printed instead of proven
-- [ ] Visual grammar obeyed (spec 11)
-- [ ] Would a consultant pay for this and use it unaided on day one?
+## Definition of done
+
+<!-- The numbered DoD, or a link to where it is written (issue or review note). -->
+1.
 
 ## Evidence
-<!-- CI run, renders, screenshots. Green checks are necessary, not sufficient. -->
 
-## Gate
-- [ ] Vlad's click-through
+- CI:
+- Inspector review note:
+- Verified:
+- Assumed / not verified:
+
+## Agent
+
+- Built by: <!-- Codex / Claude — seat -->
+- [ ] Every commit carries an `Agent: <name> / <seat>` trailer
+- [ ] Label `agent:codex` or `agent:claude` applied
+
+## Acceptance — Vlad only
+
+- [ ] Click-through done (user-facing changes)
+- [ ] Experience Pass by a seat that did not build it (user-facing changes)
+
+Merging this PR is Vlad's acceptance. Agents never merge product PRs.
